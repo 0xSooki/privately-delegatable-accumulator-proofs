@@ -42,7 +42,11 @@ impl RsaAccumulator {
     }
 
     pub fn add(&mut self, x: BigUint) {
-        if(self.set.contains(&x)) {
+        // TODO: hash x to a prime, and take mod totient, see
+        // x should be in Z_{(p-1)(q-1)^*} (after hasing it to a prime)
+        // the reason for this is so that 1/x mod (p-1)(q-1) exists
+        // otherwise we won't be able to remove the element
+        if self.set.contains(&x) {
         } else {
             self.set.insert(x.clone());
             self.acc = self.acc.modpow(&x, &self.n);
@@ -50,11 +54,14 @@ impl RsaAccumulator {
     }
 
     pub fn del(&mut self, x: BigUint) {
-        if(!self.set.contains(&x)){}
+        // if addition is done correctly, with hash to prime
+        // the modular inverse shuld exists, and this function will work
+        // if done correctly `cargo run` won't throw 'panic'
+        if !self.set.contains(&x) {}
         else {
             self.set.remove(&x);
 
-            let xinv = x.modinv(&self.n).unwrap();
+            let xinv = x.modinv(&self.totient).unwrap();
             
             self.acc = self.acc.modpow(&xinv.to_biguint().unwrap(), &self.n);
         }
@@ -75,7 +82,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_acc_add() {
+    fn test_acc_add_dell() {
+        #[test]
+        fn test_acc_add_del_no_change() {
+            let mut acc = RsaAccumulator::setup();
+            let initial_acc = acc.acc.clone();
+            let element = BigUint::from_bytes_be(b"test_element");
 
+            acc.add(element.clone());
+            acc.del(element.clone());
+
+            assert_eq!(acc.acc, initial_acc, "Accumulator value should be unchanged after add and remove of the same element");
+        }
     }
 }
