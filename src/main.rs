@@ -1,7 +1,6 @@
-use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
-use num_traits::{One, Zero};
-use num_integer::{Integer, ExtendedGcd};
-use std::collections::{hash_set, HashSet};
+use num_bigint::{BigInt, BigUint, RandBigInt, ToBigUint};
+use num_traits::One;
+use std::collections::HashSet;
 use glass_pumpkin::prime;
 
 const KEY_SIZE: u64 = 512; // This key size is just for demonstration
@@ -42,10 +41,9 @@ impl RsaAccumulator {
     }
 
     pub fn add(&mut self, x: BigUint) {
-        // TODO: hash x to a prime, and take mod totient, see
-        // x should be in Z_{(p-1)(q-1)^*} (after hasing it to a prime)
-        // the reason for this is so that 1/x mod (p-1)(q-1) exists
-        // otherwise we won't be able to remove the element
+        // Hash x to a prime before using it in the accumulator.
+        // This ensures x is coprime to the totient, so its modular inverse exists.
+        // Otherwise, removing the element may fail if the inverse does not exist.
         if self.set.contains(&x) {
         } else {
             self.set.insert(x.clone());
@@ -54,9 +52,9 @@ impl RsaAccumulator {
     }
 
     pub fn del(&mut self, x: BigUint) {
-        // if addition is done correctly, with hash to prime
-        // the modular inverse shuld exists, and this function will work
-        // if done correctly `cargo run` won't throw 'panic'
+        // If elements are hashed to primes during addition, the modular inverse will exist.
+        // This ensures deletion works without panicking.
+        // `cargo run` won't panick.
         if !self.set.contains(&x) {}
         else {
             self.set.remove(&x);
@@ -65,6 +63,22 @@ impl RsaAccumulator {
             
             self.acc = self.acc.modpow(&xinv.to_biguint().unwrap(), &self.n);
         }
+    }
+
+    pub fn mem_proof_create(acc: &RsaAccumulator, x: &BigUint) -> BigUint {
+        todo!()
+    }
+
+    pub fn non_mem_proof_create(acc: &RsaAccumulator, x: &BigUint) -> (BigUint, BigInt) {
+        todo!()
+    }
+
+    pub fn mem_ver(acc: &RsaAccumulator, proof: &BigUint, x: &BigUint) -> bool {
+        todo!()
+    }
+
+    pub fn non_mem_ver(acc: &RsaAccumulator, proof: (&BigUint, &BigUint), x: &BigUint) -> bool {
+        todo!()
     }
 }
 
@@ -82,17 +96,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_acc_add_dell() {
-        #[test]
-        fn test_acc_add_del_no_change() {
-            let mut acc = RsaAccumulator::setup();
-            let initial_acc = acc.acc.clone();
-            let element = BigUint::from_bytes_be(b"test_element");
+    fn test_acc_add_del_no_change() {
+        let mut acc = RsaAccumulator::setup();
+        let initial_acc = acc.acc.clone();
+        let element = BigUint::from_bytes_be(b"test_element");
 
-            acc.add(element.clone());
-            acc.del(element.clone());
+        acc.add(element.clone());
+        acc.del(element.clone());
 
-            assert_eq!(acc.acc, initial_acc, "Accumulator value should be unchanged after add and remove of the same element");
-        }
+        assert_eq!(acc.acc, initial_acc, "Accumulator value should be unchanged after add and remove of the same element");
     }
 }
