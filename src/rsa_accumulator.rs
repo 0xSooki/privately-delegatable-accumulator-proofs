@@ -94,16 +94,23 @@ impl RsaAccumulator {
         product
     }
 
-    pub fn mem_proof_create(acc: &RsaAccumulator, x: &BigUint) -> BigUint {
-        todo!()
+    pub fn mem_proof_create(rsa_acc: &RsaAccumulator, x: &BigUint) -> BigUint {
+        let mut prod = BigUint::one();
+        for s in &rsa_acc.set {
+            if(!s.eq(x)) {
+                prod *= s;
+            }
+        }
+        let proof = rsa_acc.g.modpow(&prod, &rsa_acc.n);
+        proof
     }
 
     pub fn non_mem_proof_create(acc: &RsaAccumulator, x: &BigUint) -> (BigUint, BigInt) {
         todo!()
     }
 
-    pub fn mem_ver(acc: &RsaAccumulator, proof: &BigUint, x: &BigUint) -> bool {
-        todo!()
+    pub fn mem_ver(rsa_acc: &RsaAccumulator, proof: &BigUint, x: &BigUint) -> bool {
+        proof.modpow(x, &rsa_acc.n) == rsa_acc.acc
     }
 
     pub fn non_mem_ver(acc: &RsaAccumulator, proof: (&BigUint, &BigUint), x: &BigUint) -> bool {
