@@ -1,12 +1,12 @@
-use num_bigint::{BigInt, BigUint, RandBigInt, ToBigUint, ToBigInt};
-use num_traits::One;
+use glass_pumpkin::safe_prime;
+use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
 use num_integer::ExtendedGcd;
-use std::collections::HashSet;
-use glass_pumpkin::prime;
 use num_integer::Integer;
+use num_traits::One;
+use std::collections::HashSet;
 extern crate primes;
 
-const KEY_SIZE: u64 = 512; // This key size is just for demonstration
+const KEY_SIZE: u64 = 128; // This key size is just for demonstration
 
 #[derive(Clone, Debug)]
 pub struct RsaAccumulator {
@@ -21,15 +21,14 @@ impl RsaAccumulator {
     pub fn setup() -> Self {
         let mut rng = rand::thread_rng();
 
-        // to be replaced by safe primes
-        let p_uint = prime::new(KEY_SIZE as usize).unwrap();
-        let q_uint = prime::new(KEY_SIZE as usize).unwrap();
+        let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
 
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
 
         let n = &p * &q;
-        let totient = (&p-BigUint::one())*(&q-BigUint::one());
+        let totient = (&p - BigUint::one()) * (&q - BigUint::one());
 
         // use quadratic residue for generator
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
@@ -69,8 +68,8 @@ impl RsaAccumulator {
         let prime_u128 = primes::hash_to_prime(vec);
         let x_prime = BigUint::from(prime_u128);
 
-        if !self.set.contains(&x_prime) {}
-        else {
+        if !self.set.contains(&x_prime) {
+        } else {
             self.set.remove(&x_prime);
 
             let product = self.calculate_product(&self.set);
@@ -92,7 +91,7 @@ impl RsaAccumulator {
     pub fn mem_proof_create(&mut self, x: &BigUint) -> BigUint {
         let mut prod = BigUint::one();
         for s in &self.set {
-            if!s.eq(&x) {
+            if !s.eq(&x) {
                 prod *= s;
             }
         }
@@ -100,24 +99,35 @@ impl RsaAccumulator {
         proof
     }
 
-    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigUint, BigUint) {
+    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigUint, BigUint, BigUint) {
         let p = self.calculate_product(&self.set);
         let s = BigInt::from(p);
-        let x_int = BigInt::from(x.clone());
-        let ExtendedGcd { gcd, x, y  } = Integer::extended_gcd(&s,&x_int);
 
-        let a = (x + self.n.to_bigint().unwrap()).to_biguint().unwrap() % &self.n;
-        let b = (y + self.n.to_bigint().unwrap()).to_biguint().unwrap() % &self.n;
- 
-        (a, self.g.modpow(&b, &self.n))
+        let x_str = x.to_string();
+        let vec = vec![x_str.as_str()];
+        let prime_u128 = primes::hash_to_prime(vec);
+        let x_prime = BigUint::from(prime_u128);
+        let x_int = BigInt::from(x_prime.clone());
+
+        let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &x_int);
+
+        let totient_int = self.totient.to_bigint().unwrap();
+        let a = ((x % &totient_int + &totient_int) % &totient_int)
+            .to_biguint()
+            .unwrap();
+        let b = (((&y) % &totient_int + &totient_int) % &totient_int)
+            .to_biguint()
+            .unwrap();
+        (x_prime, a, self.g.modpow(&b, &self.n))
     }
 
     pub fn mem_ver(&self, proof: &BigUint, x: &BigUint) -> bool {
         proof.modpow(&x, &self.n) == self.acc
     }
 
-    pub fn non_mem_ver(&self, proof: &(BigUint, BigUint), x: &BigUint) -> bool {
-        (self.acc.modpow(&proof.0, &self.n) * &proof.1) % &self.n == self.g
+    pub fn non_mem_ver(&self, proof: &(BigUint, BigUint, BigUint), x: &BigUint) -> bool {
+        (self.acc.modpow(&proof.1, &self.n) * &proof.2.modpow(&proof.0, &self.n)) % &self.n
+            == self.g
     }
 }
 
@@ -134,20 +144,41 @@ mod tests {
         acc.add(&element);
         acc.del(&element);
 
-        assert_eq!(acc.acc, initial_acc, "Accumulator value should be unchanged after add and remove of the same element");
+        assert_eq!(
+            acc.acc, initial_acc,
+            "Accumulator value should be unchanged after add and remove of the same element"
+        );
     }
 
+    #[test]
     fn test_gen_mem_proof() {
         let mut acc = RsaAccumulator::setup();
         let element = BigUint::from(7 as usize);
         let ep = acc.add(&element);
-    
+
         for i in 2..5 {
             acc.add(&BigUint::from(i as usize));
         }
 
         let proof = acc.mem_proof_create(&ep);
 
-        assert_eq!(acc.mem_ver(&proof, &ep), true);
+        assert!(acc.mem_ver(&proof, &ep));
+    }
+
+    #[test]
+    fn test_non_mem_proof() {
+        let mut acc = RsaAccumulator::setup();
+
+        acc.add(&BigUint::from(2u32));
+        acc.add(&BigUint::from(3u32));
+        acc.add(&BigUint::from(7u32));
+
+        let non_member = BigUint::from(5u32);
+
+        let proof = acc.non_mem_proof_create(&non_member);
+        assert!(
+            acc.non_mem_ver(&proof, &non_member),
+            "Non-membership proof should verify"
+        );
     }
 }
