@@ -23,10 +23,11 @@ pub mod bilinear_accumulator;
 
 pub mod traits;
 
+pub use traits::{Accumulator, Group};
+
 #[cfg(feature = "rsa")]
 pub use rsa_accumulator::RsaAccumulator;
 
 #[cfg(feature = "bilinear")]
 pub use bilinear_accumulator::BilinearAccumulator;
 
-pub use traits::Accumulator;
