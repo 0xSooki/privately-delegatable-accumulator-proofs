@@ -75,4 +75,11 @@ pub trait Accumulator {
         proof: &Self::NonMembershipProof,
         element: &Self::Element,
     ) -> bool;
+
+
+    // Blind a proof
+    //fn blind_proof(&self, proof: &BigUint) -> (BigUint, BigUint)
+
+    // Verify a blinded proof
+    // Unblind a proof
 }

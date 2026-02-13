@@ -3,6 +3,8 @@ use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
 use num_integer::ExtendedGcd;
 use num_integer::Integer;
 use num_traits::One;
+use rand::random;
+use rand::thread_rng;
 use std::collections::HashSet;
 extern crate primes;
 
@@ -23,7 +25,7 @@ impl RsaAccumulator {
 
         let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
         let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-
+        println!("setup: {:?}, {:?}", p_uint, q_uint);
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
 
@@ -129,6 +131,28 @@ impl RsaAccumulator {
         (self.acc.modpow(&proof.1, &self.n) * &proof.2.modpow(&proof.0, &self.n)) % &self.n
             == self.g
     }
+
+    pub fn blind_proof(&self, proof: &BigUint) -> (BigUint, BigUint) {
+        let mut rng = thread_rng();
+        let mut st = rng.gen_biguint(128) % &self.totient;
+        let blinded_proof = (proof * self.g.modpow(&st, &self.n)) % &self.n;
+        (blinded_proof, st)
+    }
+
+    pub fn blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
+
+        BigUint::one()
+    }
+
+    pub fn ver_blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
+        unimplemented!("Verify blind proof update using Chaum-Pedersen proofs")
+    }
+
+    pub fn unblind_proof(&self, blinded_proof: &BigUint, st: &BigUint) -> BigUint {
+        let st_inv = self.g.modpow(&st, &self.n).modinv(&self.n).unwrap();
+        let proof = blinded_proof * st_inv % &self.n;
+        proof
+    }
 }
 
 #[cfg(test)]
@@ -180,5 +204,28 @@ mod tests {
             acc.non_mem_ver(&proof, &non_member),
             "Non-membership proof should verify"
         );
+    }
+
+
+    #[test]
+    fn test_blind_unblind() {
+        let mut acc = RsaAccumulator::setup();
+      
+        let element = BigUint::from(7 as usize);
+        let ep = acc.add(&element);
+
+        for i in 2..5 {
+            acc.add(&BigUint::from(i as usize));
+        }
+
+        let proof = acc.mem_proof_create(&ep);
+
+        let blinded_proof = acc.blind_proof(&proof);
+
+        assert!(blinded_proof.0 != proof, "Proof is not blinded successfully");
+
+        let unblinded_proof = acc.unblind_proof(&blinded_proof.0, &blinded_proof.1);
+        println!("{:?}, {:?}", proof, unblinded_proof);
+        assert!(unblinded_proof == proof, "Proof is not unblinded successfully");
     }
 }
