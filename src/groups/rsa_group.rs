@@ -21,6 +21,12 @@ pub struct RsaGroup {
     totient: Option<BigUint>,
 }
 
+impl RsaGroup {
+    pub fn new(n: BigUint, g: BigUint, totient: Option<BigUint>) -> Self {
+        Self { n, g, totient }
+    }
+}
+
 impl Group for RsaGroup {
     type Element = BigUint;
     type Exponent = BigUint;

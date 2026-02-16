@@ -3,15 +3,22 @@ use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
 use num_integer::ExtendedGcd;
 use num_integer::Integer;
 use num_traits::One;
+use primes::hash_to_prime;
 use rand::random;
 use rand::thread_rng;
 use std::collections::HashSet;
+use crate::rsa_group;
+use crate::traits::Group;
+use crate::rsa_group::RsaGroup;
+
+
 extern crate primes;
 
 const KEY_SIZE: u64 = 128; // This key size is just for demonstration
 
 #[derive(Clone, Debug)]
 pub struct RsaAccumulator {
+    pub group: RsaGroup,
     pub n: BigUint,
     pub g: BigUint,
     pub acc: BigUint,
@@ -31,11 +38,14 @@ impl RsaAccumulator {
 
         let n = &p * &q;
         let totient = (&p - BigUint::one()) * (&q - BigUint::one());
-
+        
         // use quadratic residue for generator
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
+        let group = RsaGroup::new(n.clone(), g.clone(), Some(totient.clone()));
+
 
         RsaAccumulator {
+            group: group,
             n,
             g: g.clone(),
             acc: g,
@@ -140,8 +150,23 @@ impl RsaAccumulator {
     }
 
     pub fn blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
+        let mut rng = thread_rng();
+        let r = rng.gen_biguint(128) % &self.totient;
+        let delta = self.calculate_product(&self.set);
+        let pi_delta = blinded_proof.modpow(&delta, &self.n);
+        let bproof_bytes = blinded_proof.to_bytes_be();
+        let pi_delta_bytes = pi_delta.to_bytes_be();
+        let acc_bytes = self.acc.to_bytes_be();
+        let accd_bytes = self.acc.modpow(&delta, &self.n).to_bytes_be();
+        let mut bytes_data = Vec::with_capacity(bproof_bytes.len() + pi_delta_bytes.len() + acc_bytes.len() + accd_bytes.len());
+        bytes_data.extend_from_slice(&bproof_bytes);
+        bytes_data.extend_from_slice(&pi_delta_bytes);
+        bytes_data.extend_from_slice(&acc_bytes);
+        bytes_data.extend_from_slice(&accd_bytes);
 
-        BigUint::one()
+        let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
+        let z = r + e*delta;
+        z
     }
 
     pub fn ver_blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
@@ -158,6 +183,8 @@ impl RsaAccumulator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use num_bigint::BigUint;
+    use num_traits::FromPrimitive;
 
     #[test]
     fn test_acc_add_del_no_change() {
