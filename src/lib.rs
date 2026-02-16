@@ -18,6 +18,9 @@
 #[cfg(feature = "rsa")]
 pub mod rsa_accumulator;
 
+#[cfg(feature = "rsa")]
+pub mod groups;
+
 #[cfg(feature = "bilinear")]
 pub mod bilinear_accumulator;
 
@@ -28,6 +31,8 @@ pub use traits::{Accumulator, Group};
 #[cfg(feature = "rsa")]
 pub use rsa_accumulator::RsaAccumulator;
 
+#[cfg(feature = "rsa")]
+pub use groups::rsa_group;
+
 #[cfg(feature = "bilinear")]
 pub use bilinear_accumulator::BilinearAccumulator;
-
