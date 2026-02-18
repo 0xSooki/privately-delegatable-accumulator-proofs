@@ -3,7 +3,6 @@ use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
 use num_integer::ExtendedGcd;
 use num_integer::Integer;
 use num_traits::One;
-use primes::hash_to_prime;
 use rand::random;
 use rand::thread_rng;
 use std::collections::HashSet;
@@ -32,7 +31,7 @@ impl RsaAccumulator {
 
         let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
         let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-        println!("setup: {:?}, {:?}", p_uint, q_uint);
+        //println!("setup: {:?}, {:?}", p_uint, q_uint);
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
 
@@ -56,8 +55,7 @@ impl RsaAccumulator {
 
     pub fn add(&mut self, mut x: &BigUint) -> BigUint {
         let x_str = x.to_string();
-        let vec = vec![x_str.as_str()];
-        let prime_u128 = primes::hash_to_prime(vec);
+        let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
         let x_prime = BigUint::from(prime_u128);
         //TODO find a crate that converts hash to prime determinstically
 
@@ -76,8 +74,7 @@ impl RsaAccumulator {
         // This ensures deletion works without panicking.
         // `cargo run` won't panick.
         let x_str = x.to_string();
-        let vec = vec![x_str.as_str()];
-        let prime_u128 = primes::hash_to_prime(vec);
+        let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
         let x_prime = BigUint::from(prime_u128);
 
         if !self.set.contains(&x_prime) {
@@ -116,8 +113,7 @@ impl RsaAccumulator {
         let s = BigInt::from(p);
 
         let x_str = x.to_string();
-        let vec = vec![x_str.as_str()];
-        let prime_u128 = primes::hash_to_prime(vec);
+        let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
         let x_prime = BigUint::from(prime_u128);
         let x_int = BigInt::from(x_prime.clone());
 
@@ -150,6 +146,11 @@ impl RsaAccumulator {
     }
 
     pub fn blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
+        // addition is sufficient in the first round, trapdoor settings can wait for now
+        // 1
+        // parameters are the elements we put in and want to take out
+        // introduce an optional field to delta
+        // z is returned for now, but the wanted is both the updated proof and aux
         let mut rng = thread_rng();
         let r = rng.gen_biguint(128) % &self.totient;
         let delta = self.calculate_product(&self.set);

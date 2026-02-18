@@ -23,3 +23,8 @@ ark-bls12-381 = { version = "0.4", optional = true }
 Gen_Prime = "=1.1.9"
 rust-miller-rabin = "0.1.4"
 sha256 = "1.6.0"
+criterion = "0.5"
+
+[[bench]]
+name = "rsa_benchmark"
+harness = false
