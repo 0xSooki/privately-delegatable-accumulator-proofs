@@ -145,29 +145,19 @@ impl RsaAccumulator {
         (blinded_proof, st)
     }
 
-    pub fn blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
+    pub fn blind_proof_upd(&self, elem_in: &Vec<BigUint>, elem_out: &Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> BigUint {
         // addition is sufficient in the first round, trapdoor settings can wait for now
         // 1
         // parameters are the elements we put in and want to take out
         // introduce an optional field to delta
         // z is returned for now, but the wanted is both the updated proof and aux
-        let mut rng = thread_rng();
-        let r = rng.gen_biguint(128) % &self.totient;
         let delta = self.calculate_product(&self.set);
         let pi_delta = blinded_proof.modpow(&delta, &self.n);
-        let bproof_bytes = blinded_proof.to_bytes_be();
-        let pi_delta_bytes = pi_delta.to_bytes_be();
-        let acc_bytes = self.acc.to_bytes_be();
-        let accd_bytes = self.acc.modpow(&delta, &self.n).to_bytes_be();
-        let mut bytes_data = Vec::with_capacity(bproof_bytes.len() + pi_delta_bytes.len() + acc_bytes.len() + accd_bytes.len());
-        bytes_data.extend_from_slice(&bproof_bytes);
-        bytes_data.extend_from_slice(&pi_delta_bytes);
-        bytes_data.extend_from_slice(&acc_bytes);
-        bytes_data.extend_from_slice(&accd_bytes);
-
-        let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
-        let z = r + e*delta;
-        z
+        let acct_tprime = self.acc;
+        // pi^delta, acc_t^delta, g^delta
+        // NIZK pi^\dleta, acc^\delta,
+        // NIZK pi^\dleta, g^\delta,
+        // return updated_blinded_proof, pi1, pi2
     }
 
     pub fn ver_blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
