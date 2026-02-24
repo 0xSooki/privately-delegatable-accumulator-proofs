@@ -1,7 +1,6 @@
 use num_bigint::{BigUint, RandBigInt};
 use rand::thread_rng;
 use sha256::digest;
-use crate::math::pow;
 use crate::rsa_group::RsaGroup;
 use crate::traits::Group;
 
@@ -34,8 +33,9 @@ impl NIZK<'_> {
   
     let mut rng = thread_rng();
     let r = rng.gen_biguint(128);
-    let a = self.group.exp(&g, &r);
-    let b = self.group.exp(&h, &r);
+    let n = &self.group.n;
+    let a = g.modpow(&r, n);
+    let b = h.modpow(&r, n);
 
     let g_bytes = g.to_bytes_be();
     let h_bytes = h.to_bytes_be();
@@ -75,9 +75,10 @@ impl NIZK<'_> {
         }
     
         let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
-        let aue = a * self.group.exp(u, &e);
-        let bve = b * self.group.exp(v, &e);
-        self.group.exp(&g, &z) == aue && self.group.exp(&h, &z) == bve
+        let n = &self.group.n;
+        let aue = (a * u.modpow(&e, n)) % n;
+        let bve = (b * v.modpow(&e, n)) % n;
+        g.modpow(&z, n) == aue && h.modpow(&z, n) == bve
   }
 
     pub fn prove_poe() {
@@ -105,8 +106,9 @@ mod tests {
         let h = BigUint::from(3u32);
 
         let w = BigUint::from(42u32);
-        let u = g.modpow(&w, &modulus);
-        let v = h.modpow(&w, &modulus);
+        let n = &group.n;
+        let u = w.modpow(&modulus, n);
+        let v = w.modpow(&modulus, n);
 
         let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
 
