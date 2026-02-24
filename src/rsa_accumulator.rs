@@ -6,9 +6,11 @@ use num_traits::One;
 use rand::random;
 use rand::thread_rng;
 use std::collections::HashSet;
+use crate::nizk;
 use crate::rsa_group;
 use crate::traits::Group;
 use crate::rsa_group::RsaGroup;
+use crate::nizk::NIZK;
 
 
 extern crate primes;
@@ -145,19 +147,24 @@ impl RsaAccumulator {
         (blinded_proof, st)
     }
 
-    pub fn blind_proof_upd(&self, elem_in: &Vec<BigUint>, elem_out: &Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> BigUint {
-        // addition is sufficient in the first round, trapdoor settings can wait for now
-        // 1
-        // parameters are the elements we put in and want to take out
-        // introduce an optional field to delta
-        // z is returned for now, but the wanted is both the updated proof and aux
+    pub fn blind_proof_upd(&self, elem_in: &Vec<BigUint>, elem_out: &Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> ((BigUint, BigUint), ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint))) {
         let delta = self.calculate_product(&self.set);
         let pi_delta = blinded_proof.modpow(&delta, &self.n);
-        let acct_tprime = self.acc;
+        let acct_tprime = &self.acc;
+        let nizk = NIZK::setup(&self.group);
+        let a = pi_delta;
+        let b = self.g.modpow(&delta, &self.n);
+        let pi1 = NIZK::prove_dleq(&nizk, blinded_proof, &a, acc_t, &acct_tprime, &delta);
+        let pi2 = NIZK::prove_dleq(&nizk, &self.g, &b, blinded_proof, &a, &delta);
         // pi^delta, acc_t^delta, g^delta
         // NIZK pi^\dleta, acc^\delta,
         // NIZK pi^\dleta, g^\delta,
-        // return updated_blinded_proof, pi1, pi2
+
+        // let nizk = NIZK(group);
+        // let proof = 
+        let updated_blinded_proof = (a,b);
+        let aux = (pi1,pi2);
+        (updated_blinded_proof, aux)
     }
 
     pub fn ver_blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
