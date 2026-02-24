@@ -101,14 +101,13 @@ mod tests {
         let group = RsaGroup::new(pp.clone(), pp.clone(), Some(pp));
 
         let mut nizk = NIZK::setup(&group);
-        let modulus = BigUint::from(10007u32);
         let g = BigUint::from(2u32);
         let h = BigUint::from(3u32);
 
         let w = BigUint::from(42u32);
         let n = &group.n;
-        let u = w.modpow(&modulus, n);
-        let v = w.modpow(&modulus, n);
+        let u = g.modpow(&w, n);
+        let v = h.modpow(&w, n);
 
         let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
 
