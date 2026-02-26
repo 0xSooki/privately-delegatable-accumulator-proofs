@@ -56,7 +56,7 @@ impl NIZK<'_> {
     (a,b,z)
   }
 
-    pub fn verify_dleq(&mut self, g: &BigUint, u: &BigUint, h: &BigUint, v: &BigUint, proof: &Proof) -> bool {
+    pub fn verify_dleq(&self, g: &BigUint, u: &BigUint, h: &BigUint, v: &BigUint, proof: &Proof) -> bool {
         let a = &proof.0;
         let b = &proof.1;
         let z = &proof.2;

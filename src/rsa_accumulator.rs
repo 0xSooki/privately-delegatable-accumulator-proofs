@@ -12,6 +12,8 @@ use crate::traits::Group;
 use crate::rsa_group::RsaGroup;
 use crate::nizk::NIZK;
 
+type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
+type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
 
 extern crate primes;
 
@@ -83,12 +85,12 @@ impl RsaAccumulator {
         } else {
             self.set.remove(&x_prime);
 
-            let product = self.calculate_product(&self.set);
+            let product = RsaAccumulator::calculate_product(&self.set);
             self.acc = self.g.modpow(&product, &self.n);
         }
     }
 
-    fn calculate_product(&self, set: &HashSet<BigUint>) -> BigUint {
+    fn calculate_product(set: &HashSet<BigUint>) -> BigUint {
         if set.is_empty() {
             return BigUint::one();
         }
@@ -111,7 +113,7 @@ impl RsaAccumulator {
     }
 
     pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigUint, BigUint, BigUint) {
-        let p = self.calculate_product(&self.set);
+        let p = RsaAccumulator::calculate_product(&self.set);
         let s = BigInt::from(p);
 
         let x_str = x.to_string();
@@ -147,28 +149,45 @@ impl RsaAccumulator {
         (blinded_proof, st)
     }
 
-    pub fn blind_proof_upd(&self, elem_in: &Vec<BigUint>, elem_out: &Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> ((BigUint, BigUint), ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint))) {
-        let delta = self.calculate_product(&self.set);
-        let pi_delta = blinded_proof.modpow(&delta, &self.n);
+    pub fn blind_proof_upd(&self, elem_in: Vec<BigUint>, elem_out: Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> UpdatedBlindProof {
+        let mut set_prime = self.set.clone();
+        if!elem_in.is_empty() {
+            for elem in elem_in {
+                set_prime.insert(elem);
+            }
+        }
+        // TODO if the order of groups is known use modulo and then can remove elements from it:
+        //if!elem_out.is_empty() {
+        //    for elem in elem_out {
+        //        set_prime.remove(&elem);
+        //    }
+        //}
+        let delta = RsaAccumulator::calculate_product(&set_prime);
         let acct_tprime = &self.acc;
-        let nizk = NIZK::setup(&self.group);
-        let a = pi_delta;
+        let a = blinded_proof.modpow(&delta, &self.n);
         let b = self.g.modpow(&delta, &self.n);
+
+        let nizk = NIZK::setup(&self.group);
         let pi1 = NIZK::prove_dleq(&nizk, blinded_proof, &a, acc_t, &acct_tprime, &delta);
         let pi2 = NIZK::prove_dleq(&nizk, &self.g, &b, blinded_proof, &a, &delta);
-        // pi^delta, acc_t^delta, g^delta
-        // NIZK pi^\dleta, acc^\delta,
-        // NIZK pi^\dleta, g^\delta,
 
-        // let nizk = NIZK(group);
-        // let proof = 
         let updated_blinded_proof = (a,b);
         let aux = (pi1,pi2);
-        (updated_blinded_proof, aux)
+        (updated_blinded_proof, aux, acc_t.clone())
     }
 
-    pub fn ver_blind_proof_upd(&self, blinded_proof: &BigUint) -> BigUint {
-        unimplemented!("Verify blind proof update using Chaum-Pedersen proofs")
+    pub fn ver_blind_proof_upd(&self, acc_t: &BigUint, blinded_proof: &BigUint, updated_blinded_proof: &(BigUint, BigUint), aux: &Aux) -> bool {
+        let pi1 = &aux.0;
+        let pi2 = &aux.1;
+
+        let a = &updated_blinded_proof.0;
+        let b = &updated_blinded_proof.1;
+        let nizk = NIZK::setup(&self.group);
+        let acct_tprime = &self.acc;
+
+        let d1 = NIZK::verify_dleq(&nizk, &blinded_proof, &a, &acc_t, &acct_tprime, &pi1);
+        let d2 = NIZK::verify_dleq(&nizk, &self.g, &b, &blinded_proof, &a, &pi2);
+        d1 && d2
     }
 
     pub fn unblind_proof(&self, blinded_proof: &BigUint, st: &BigUint) -> BigUint {
@@ -252,5 +271,41 @@ mod tests {
         let unblinded_proof = acc.unblind_proof(&blinded_proof.0, &blinded_proof.1);
         println!("{:?}, {:?}", proof, unblinded_proof);
         assert!(unblinded_proof == proof, "Proof is not unblinded successfully");
+    }
+
+
+    #[test]
+    fn test_blind_proof_upd_ver() {
+        let mut acc = RsaAccumulator::setup();
+
+        let ep = acc.add(&BigUint::from(200003u32));
+
+
+        let acct = acc.acc.clone();
+
+        let proof = acc.mem_proof_create(&ep);
+
+        let blinded_proof = acc.blind_proof(&proof);
+
+
+        let elements_in = vec![BigUint::from(65537u32), BigUint::from(100003u32), BigUint::from(104729u32), BigUint::from(1299709u32), BigUint::from(15485863u32)];
+
+        let elements_out = vec![];
+        //let pp = BigUint::from(12345u32);
+        //let elements_out = vec![BigInt::from(100003u32)];
+        for elem in &elements_in {
+            acc.add(&elem);
+        }
+
+        let updated_blind_proof = acc.blind_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+
+        assert!(acc.ver_blind_proof_upd(&acct, &blinded_proof.0, &updated_blind_proof.0, &updated_blind_proof.1));
+
+
+        //let element_set: HashSet<BigUint> = elements.into_iter().collect();
+
+        //let prodt = RsaAccumulator::calculate_product(&element_set);
+
+
     }
 }
