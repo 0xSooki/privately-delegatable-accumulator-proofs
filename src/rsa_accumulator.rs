@@ -227,6 +227,30 @@ impl RsaAccumulator {
         proof
     }
 
+        pub fn non_mem_proof_upd(&self, x: &BigUint) -> (BigUint, BigUint, BigUint) {
+        let p = RsaAccumulator::calculate_product(&self.set);
+        let s = BigInt::from(p);
+
+        let x_str = x.to_string();
+        let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
+        let x_prime = BigUint::from(prime_u128);
+        let x_int = BigInt::from(x_prime.clone());
+
+        let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &x_int);
+        if let Some(t) = self.totient.as_ref() {
+            let totient_int = t.to_bigint().unwrap();
+            let a = ((x % &totient_int + &totient_int) % &totient_int)
+                .to_biguint()
+                .unwrap();
+            let b = ((y % &totient_int + &totient_int) % &totient_int)
+                .to_biguint()
+                .unwrap();
+            (x_prime, a, self.g.modpow(&b, &self.n))
+        } else {
+            todo!()
+        }
+    }
+
     fn reduce_exp(&self, exp: BigUint) -> BigUint {
         match &self.totient {
             Some(t) => exp % t,
@@ -337,8 +361,6 @@ mod tests {
         ];
 
         let elements_out = vec![];
-        //let pp = BigUint::from(12345u32);
-        //let elements_out = vec![BigInt::from(100003u32)];
         for elem in &elements_in {
             acc.add(&elem);
         }
@@ -352,9 +374,5 @@ mod tests {
             &updated_blind_proof.0,
             &updated_blind_proof.1
         ));
-
-        //let element_set: HashSet<BigUint> = elements.into_iter().collect();
-
-        //let prodt = RsaAccumulator::calculate_product(&element_set);
     }
 }
