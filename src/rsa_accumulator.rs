@@ -150,19 +150,12 @@ impl RsaAccumulator {
     }
 
     pub fn blind_proof_upd(&self, elem_in: Vec<BigUint>, elem_out: Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> UpdatedBlindProof {
-        let mut set_prime = self.set.clone();
-        if!elem_in.is_empty() {
-            for elem in elem_in {
-                set_prime.insert(elem);
-            }
+        let mut delta = BigUint::one();
+        for elem in &elem_in {
+            let x_str = elem.to_string();
+            let x_prime = self.group.hash_to_prime(x_str.as_bytes());
+            delta *= &x_prime;
         }
-        // TODO if the order of groups is known use modulo and then can remove elements from it:
-        //if!elem_out.is_empty() {
-        //    for elem in elem_out {
-        //        set_prime.remove(&elem);
-        //    }
-        //}
-        let delta = RsaAccumulator::calculate_product(&set_prime);
         let acct_tprime = &self.acc;
         let a = blinded_proof.modpow(&delta, &self.n);
         let b = self.g.modpow(&delta, &self.n);
