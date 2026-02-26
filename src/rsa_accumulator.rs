@@ -25,7 +25,7 @@ pub struct RsaAccumulator {
     pub n: BigUint,
     pub g: BigUint,
     pub acc: BigUint,
-    pub totient: BigUint,
+    pub totient: Option<BigUint>,
     pub set: HashSet<BigUint>,
 }
 
@@ -46,13 +46,34 @@ impl RsaAccumulator {
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
         let group = RsaGroup::new(n.clone(), g.clone(), Some(totient.clone()));
 
-
         RsaAccumulator {
-            group: group,
+            group,
             n,
             g: g.clone(),
             acc: g,
-            totient: totient,
+            totient: Some(totient),
+            set: HashSet::new(),
+        }
+    }
+
+    pub fn setup_trapdoorless() -> Self {
+        let mut rng = rand::thread_rng();
+
+        let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let p = BigUint::from(p_uint);
+        let q = BigUint::from(q_uint);
+        let n = &p * &q;
+
+        let g = rng.gen_biguint_range(&BigUint::one(), &n);
+        let group = RsaGroup::new(n.clone(), g.clone(), None);
+
+        RsaAccumulator {
+            group,
+            n,
+            g: g.clone(),
+            acc: g,
+            totient: None,
             set: HashSet::new(),
         }
     }
@@ -108,7 +129,8 @@ impl RsaAccumulator {
                 prod *= s;
             }
         }
-        let proof = self.g.modpow(&(&prod % &self.totient), &self.n);
+        prod = self.reduce_exp(prod);
+        let proof = self.g.modpow(&prod, &self.n);
         proof
     }
 
@@ -122,8 +144,8 @@ impl RsaAccumulator {
         let x_int = BigInt::from(x_prime.clone());
 
         let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &x_int);
-
-        let totient_int = self.totient.to_bigint().unwrap();
+        if let Some(t) = self.totient.as_ref() {
+        let totient_int = t.to_bigint().unwrap();
         let a = ((x % &totient_int + &totient_int) % &totient_int)
             .to_biguint()
             .unwrap();
@@ -131,6 +153,9 @@ impl RsaAccumulator {
             .to_biguint()
             .unwrap();
         (x_prime, a, self.g.modpow(&b, &self.n))
+        } else {
+            unimplemented!()
+        }
     }
 
     pub fn mem_ver(&self, proof: &BigUint, x: &BigUint) -> bool {
@@ -144,7 +169,8 @@ impl RsaAccumulator {
 
     pub fn blind_proof(&self, proof: &BigUint) -> (BigUint, BigUint) {
         let mut rng = thread_rng();
-        let mut st = rng.gen_biguint(128) % &self.totient;
+        let mut st = rng.gen_biguint(128);
+        st = self.reduce_exp(st);
         let blinded_proof = (proof * self.g.modpow(&st, &self.n)) % &self.n;
         (blinded_proof, st)
     }
@@ -187,6 +213,13 @@ impl RsaAccumulator {
         let st_inv = self.g.modpow(&st, &self.n).modinv(&self.n).unwrap();
         let proof = blinded_proof * st_inv % &self.n;
         proof
+    }
+
+    fn reduce_exp(&self, exp: BigUint) -> BigUint {
+        match &self.totient {
+            Some(t) => exp % t,
+            None => exp
+        }
     }
 }
 
