@@ -226,8 +226,8 @@ impl RsaAccumulator {
         let proof = blinded_proof * st_inv % &self.n;
         proof
     }
-
-        pub fn non_mem_proof_upd(&self, x: &BigUint) -> (BigUint, BigUint, BigUint) {
+pub fn test9() {}
+    pub fn non_mem_proof_upd(&self, x: &BigUint) -> (BigUint, BigUint, BigUint) {
         let p = RsaAccumulator::calculate_product(&self.set);
         let s = BigInt::from(p);
 
