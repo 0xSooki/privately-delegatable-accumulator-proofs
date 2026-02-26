@@ -6,7 +6,7 @@ use num_traits::{One, Zero};
 use rust_miller_rabin::miller_rabin::miller_rabin;
 use sha256::digest;
 
-const KEY_SIZE: u64 = 128; 
+const KEY_SIZE: u64 = 128;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrapdoorMode {
@@ -30,25 +30,29 @@ impl RsaGroup {
 impl Group for RsaGroup {
     type Element = BigUint;
     type Exponent = BigUint;
-    
+
     fn setup() -> Self {
         let mut rng = rand::thread_rng();
-        
+
         let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
         let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-        
+
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
-        
+
         let n = &p * &q;
         let totient = (&p - BigUint::one()) * (&q - BigUint::one());
-        
+
         // use quadratic residue for generator
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
-        
-        RsaGroup { n, g, totient: Some(totient) }
+
+        RsaGroup {
+            n,
+            g,
+            totient: Some(totient),
+        }
     }
-    
+
     fn g(&self) -> Self::Element {
         self.g.clone()
     }
@@ -73,11 +77,11 @@ impl Group for RsaGroup {
         let res = x.to_biguint().expect("conversion to BigUint failed");
         res
     }
-    
+
     fn exp(&self, base: &Self::Element, exponent: &Self::Exponent) -> Self::Element {
         base.modpow(exponent, &self.n)
     }
-    
+
     fn exp_id() -> Self::Exponent {
         BigUint::one()
     }
@@ -85,23 +89,23 @@ impl Group for RsaGroup {
     fn exp_mul(a: &Self::Exponent, b: &Self::Exponent) -> Self::Exponent {
         a * b
     }
-    
-fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
-    let hash_hex = digest(data);
-    let mut candidate = BigUint::parse_bytes(hash_hex.as_bytes(), 16).unwrap();
 
-    if candidate.is_even() {
-        candidate += 1u32;
-    }
+    fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
+        let hash_hex = digest(data);
+        let mut candidate = BigUint::parse_bytes(hash_hex.as_bytes(), 16).unwrap();
 
-    loop {
-        let candidate_signed = BigInt::from_biguint(Sign::Plus, candidate.clone());
-        if miller_rabin(&candidate_signed) {
-            return candidate;
+        if candidate.is_even() {
+            candidate += 1u32;
         }
-        candidate += 2u32;
+
+        loop {
+            let candidate_signed = BigInt::from_biguint(Sign::Plus, candidate.clone());
+            if miller_rabin(&candidate_signed) {
+                return candidate;
+            }
+            candidate += 2u32;
+        }
     }
-}
 }
 
 impl RsaGroup {
@@ -117,11 +121,19 @@ impl RsaGroup {
         let n = &p * &q;
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
 
-        RsaGroup { n, g, totient: None }
+        RsaGroup {
+            n,
+            g,
+            totient: None,
+        }
     }
 
     pub fn from_modulus(n: BigUint, g: BigUint) -> Self {
-        RsaGroup { n, g, totient: None }
+        RsaGroup {
+            n,
+            g,
+            totient: None,
+        }
     }
 
     pub fn mode(&self) -> TrapdoorMode {
@@ -139,7 +151,7 @@ impl RsaGroup {
     pub fn totient(&self) -> Option<&BigUint> {
         self.totient.as_ref()
     }
-    
+
     pub fn modulus(&self) -> &BigUint {
         &self.n
     }

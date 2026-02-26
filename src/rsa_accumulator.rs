@@ -1,3 +1,8 @@
+use crate::nizk;
+use crate::nizk::NIZK;
+use crate::rsa_group;
+use crate::rsa_group::RsaGroup;
+use crate::traits::Group;
 use glass_pumpkin::safe_prime;
 use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
 use num_integer::ExtendedGcd;
@@ -6,11 +11,6 @@ use num_traits::One;
 use rand::random;
 use rand::thread_rng;
 use std::collections::HashSet;
-use crate::nizk;
-use crate::rsa_group;
-use crate::traits::Group;
-use crate::rsa_group::RsaGroup;
-use crate::nizk::NIZK;
 
 type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
 type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
@@ -41,7 +41,7 @@ impl RsaAccumulator {
 
         let n = &p * &q;
         let totient = (&p - BigUint::one()) * (&q - BigUint::one());
-        
+
         // use quadratic residue for generator
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
         let group = RsaGroup::new(n.clone(), g.clone(), Some(totient.clone()));
@@ -145,16 +145,16 @@ impl RsaAccumulator {
 
         let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &x_int);
         if let Some(t) = self.totient.as_ref() {
-        let totient_int = t.to_bigint().unwrap();
-        let a = ((x % &totient_int + &totient_int) % &totient_int)
-            .to_biguint()
-            .unwrap();
-        let b = (((&y) % &totient_int + &totient_int) % &totient_int)
-            .to_biguint()
-            .unwrap();
-        (x_prime, a, self.g.modpow(&b, &self.n))
+            let totient_int = t.to_bigint().unwrap();
+            let a = ((x % &totient_int + &totient_int) % &totient_int)
+                .to_biguint()
+                .unwrap();
+            let b = ((y % &totient_int + &totient_int) % &totient_int)
+                .to_biguint()
+                .unwrap();
+            (x_prime, a, self.g.modpow(&b, &self.n))
         } else {
-            unimplemented!()
+            todo!()
         }
     }
 
@@ -175,7 +175,13 @@ impl RsaAccumulator {
         (blinded_proof, st)
     }
 
-    pub fn blind_proof_upd(&self, elem_in: Vec<BigUint>, elem_out: Vec<BigUint>, acc_t: &BigUint, blinded_proof: &BigUint) -> UpdatedBlindProof {
+    pub fn blind_proof_upd(
+        &self,
+        elem_in: Vec<BigUint>,
+        elem_out: Vec<BigUint>,
+        acc_t: &BigUint,
+        blinded_proof: &BigUint,
+    ) -> UpdatedBlindProof {
         let mut delta = BigUint::one();
         for elem in &elem_in {
             let x_str = elem.to_string();
@@ -190,12 +196,18 @@ impl RsaAccumulator {
         let pi1 = NIZK::prove_dleq(&nizk, blinded_proof, &a, acc_t, &acct_tprime, &delta);
         let pi2 = NIZK::prove_dleq(&nizk, &self.g, &b, blinded_proof, &a, &delta);
 
-        let updated_blinded_proof = (a,b);
-        let aux = (pi1,pi2);
+        let updated_blinded_proof = (a, b);
+        let aux = (pi1, pi2);
         (updated_blinded_proof, aux, acc_t.clone())
     }
 
-    pub fn ver_blind_proof_upd(&self, acc_t: &BigUint, blinded_proof: &BigUint, updated_blinded_proof: &(BigUint, BigUint), aux: &Aux) -> bool {
+    pub fn ver_blind_proof_upd(
+        &self,
+        acc_t: &BigUint,
+        blinded_proof: &BigUint,
+        updated_blinded_proof: &(BigUint, BigUint),
+        aux: &Aux,
+    ) -> bool {
         let pi1 = &aux.0;
         let pi2 = &aux.1;
 
@@ -218,7 +230,7 @@ impl RsaAccumulator {
     fn reduce_exp(&self, exp: BigUint) -> BigUint {
         match &self.totient {
             Some(t) => exp % t,
-            None => exp
+            None => exp,
         }
     }
 }
@@ -276,11 +288,10 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_blind_unblind() {
         let mut acc = RsaAccumulator::setup();
-      
+
         let element = BigUint::from(7 as usize);
         let ep = acc.add(&element);
 
@@ -292,13 +303,18 @@ mod tests {
 
         let blinded_proof = acc.blind_proof(&proof);
 
-        assert!(blinded_proof.0 != proof, "Proof is not blinded successfully");
+        assert!(
+            blinded_proof.0 != proof,
+            "Proof is not blinded successfully"
+        );
 
         let unblinded_proof = acc.unblind_proof(&blinded_proof.0, &blinded_proof.1);
         println!("{:?}, {:?}", proof, unblinded_proof);
-        assert!(unblinded_proof == proof, "Proof is not unblinded successfully");
+        assert!(
+            unblinded_proof == proof,
+            "Proof is not unblinded successfully"
+        );
     }
-
 
     #[test]
     fn test_blind_proof_upd_ver() {
@@ -306,15 +322,19 @@ mod tests {
 
         let ep = acc.add(&BigUint::from(200003u32));
 
-
         let acct = acc.acc.clone();
 
         let proof = acc.mem_proof_create(&ep);
 
         let blinded_proof = acc.blind_proof(&proof);
 
-
-        let elements_in = vec![BigUint::from(65537u32), BigUint::from(100003u32), BigUint::from(104729u32), BigUint::from(1299709u32), BigUint::from(15485863u32)];
+        let elements_in = vec![
+            BigUint::from(65537u32),
+            BigUint::from(100003u32),
+            BigUint::from(104729u32),
+            BigUint::from(1299709u32),
+            BigUint::from(15485863u32),
+        ];
 
         let elements_out = vec![];
         //let pp = BigUint::from(12345u32);
@@ -323,15 +343,18 @@ mod tests {
             acc.add(&elem);
         }
 
-        let updated_blind_proof = acc.blind_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+        let updated_blind_proof =
+            acc.blind_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
 
-        assert!(acc.ver_blind_proof_upd(&acct, &blinded_proof.0, &updated_blind_proof.0, &updated_blind_proof.1));
-
+        assert!(acc.ver_blind_proof_upd(
+            &acct,
+            &blinded_proof.0,
+            &updated_blind_proof.0,
+            &updated_blind_proof.1
+        ));
 
         //let element_set: HashSet<BigUint> = elements.into_iter().collect();
 
         //let prodt = RsaAccumulator::calculate_product(&element_set);
-
-
     }
 }

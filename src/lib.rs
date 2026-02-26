@@ -24,9 +24,9 @@ pub mod groups;
 #[cfg(feature = "bilinear")]
 pub mod bilinear_accumulator;
 
-pub mod traits;
 pub mod math;
 pub mod nizk;
+pub mod traits;
 
 pub use traits::{Accumulator, Group};
 

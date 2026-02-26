@@ -3,24 +3,24 @@ use privacy_preserving_accumulators::RsaAccumulator;
 use rand::thread_rng;
 
 fn main() {
-        let mut acc = RsaAccumulator::setup();
-        let element = BigUint::from(7 as usize);
-        let ep = acc.add(&element);
-    
-        for i in 2..5 {
-            acc.add(&BigUint::from(i as u32));
-        }
+    let mut acc = RsaAccumulator::setup();
+    let element = BigUint::from(7 as usize);
+    let ep = acc.add(&element);
 
-        for i in &acc.set {
-            print!("{:?}, ", i)
-        }
-        println!("");
-        let proof = acc.mem_proof_create(&ep);
+    for i in 2..5 {
+        acc.add(&BigUint::from(i as u32));
+    }
 
-        println!("{:?}",acc.mem_ver(&proof, &ep));
+    for i in &acc.set {
+        print!("{:?}, ", i)
+    }
+    println!("");
+    let proof = acc.mem_proof_create(&ep);
 
-        let nonelement = BigUint::from(383 as usize);
-        let nonproof = acc.non_mem_proof_create(&nonelement);
+    println!("{:?}", acc.mem_ver(&proof, &ep));
 
-        println!("nonmemver: {:?}",acc.non_mem_ver(&nonproof, &nonelement));
+    let nonelement = BigUint::from(383 as usize);
+    let nonproof = acc.non_mem_proof_create(&nonelement);
+
+    println!("nonmemver: {:?}", acc.non_mem_ver(&nonproof, &nonelement));
 }

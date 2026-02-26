@@ -1,62 +1,69 @@
+use crate::rsa_group::RsaGroup;
+use crate::traits::Group;
 use num_bigint::{BigUint, RandBigInt};
 use rand::thread_rng;
 use sha256::digest;
-use crate::rsa_group::RsaGroup;
-use crate::traits::Group;
 
 type Proof = (BigUint, BigUint, BigUint);
 
-
 #[derive(Debug, Clone)]
 pub struct Transcript {
-  a: BigUint,
-  b: BigUint,
-  z: BigUint
+    a: BigUint,
+    b: BigUint,
+    z: BigUint,
 }
 
 #[derive(Debug, Clone)]
 pub struct NIZK<'a> {
-
-  group: &'a RsaGroup,
+    group: &'a RsaGroup,
 }
 
 impl NIZK<'_> {
-
-  pub fn setup(group: &RsaGroup) -> NIZK<'_> {
-    
-    NIZK { 
-        group: group,
-    }
-  }
-
-  pub fn prove_dleq(&self, g: &BigUint, u: &BigUint, h: &BigUint, v: &BigUint, w: &BigUint) -> Proof {
-  
-    let mut rng = thread_rng();
-    let r = rng.gen_biguint(128);
-    let n = &self.group.n;
-    let a = g.modpow(&r, n);
-    let b = h.modpow(&r, n);
-
-    let g_bytes = g.to_bytes_be();
-    let h_bytes = h.to_bytes_be();
-    let u_bytes = u.to_bytes_be();
-    let v_bytes = v.to_bytes_be();
-    let a_bytes = a.to_bytes_be();
-    let b_bytes = b.to_bytes_be();
-
-    let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
-  
-    let mut bytes_data = Vec::with_capacity(parts.iter().map(|p| p.len()).sum());
-    for p in parts {
-      bytes_data.extend_from_slice(p);
+    pub fn setup(group: &RsaGroup) -> NIZK<'_> {
+        NIZK { group: group }
     }
 
-    let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
-    let z = r + e*w;
-    (a,b,z)
-  }
+    pub fn prove_dleq(
+        &self,
+        g: &BigUint,
+        u: &BigUint,
+        h: &BigUint,
+        v: &BigUint,
+        w: &BigUint,
+    ) -> Proof {
+        let mut rng = thread_rng();
+        let r = rng.gen_biguint(128);
+        let n = &self.group.n;
+        let a = g.modpow(&r, n);
+        let b = h.modpow(&r, n);
 
-    pub fn verify_dleq(&self, g: &BigUint, u: &BigUint, h: &BigUint, v: &BigUint, proof: &Proof) -> bool {
+        let g_bytes = g.to_bytes_be();
+        let h_bytes = h.to_bytes_be();
+        let u_bytes = u.to_bytes_be();
+        let v_bytes = v.to_bytes_be();
+        let a_bytes = a.to_bytes_be();
+        let b_bytes = b.to_bytes_be();
+
+        let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
+
+        let mut bytes_data = Vec::with_capacity(parts.iter().map(|p| p.len()).sum());
+        for p in parts {
+            bytes_data.extend_from_slice(p);
+        }
+
+        let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
+        let z = r + e * w;
+        (a, b, z)
+    }
+
+    pub fn verify_dleq(
+        &self,
+        g: &BigUint,
+        u: &BigUint,
+        h: &BigUint,
+        v: &BigUint,
+        proof: &Proof,
+    ) -> bool {
         let a = &proof.0;
         let b = &proof.1;
         let z = &proof.2;
@@ -66,28 +73,28 @@ impl NIZK<'_> {
         let v_bytes = v.to_bytes_be();
         let a_bytes = a.to_bytes_be();
         let b_bytes = b.to_bytes_be();
-    
+
         let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
         let mut bytes_data = Vec::with_capacity(parts.iter().map(|p| p.len()).sum());
-    
+
         for p in parts {
-          bytes_data.extend_from_slice(p);
+            bytes_data.extend_from_slice(p);
         }
-    
+
         let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
         let n = &self.group.n;
         let aue = (a * u.modpow(&e, n)) % n;
         let bve = (b * v.modpow(&e, n)) % n;
         g.modpow(&z, n) == aue && h.modpow(&z, n) == bve
-  }
+    }
 
     pub fn prove_poe() {
-    unimplemented!("implement DLEq...")
-  }
+        unimplemented!("implement DLEq...")
+    }
 
     pub fn verify_poe() {
-    unimplemented!("implement DLEq...")
-  }
+        unimplemented!("implement DLEq...")
+    }
 }
 
 #[cfg(test)]
@@ -113,4 +120,4 @@ mod tests {
 
         assert!(nizk.verify_dleq(&g, &u, &h, &v, &proof));
     }
-  }
+}
