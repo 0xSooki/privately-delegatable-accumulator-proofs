@@ -317,7 +317,7 @@ mod tests {
         let mut acc = RsaAccumulator::setup();
 
         let element = BigUint::from(7 as usize);
-        let ep = acc.add(&element);
+        let ep: BigUint = acc.add(&element);
 
         for i in 2..5 {
             acc.add(&BigUint::from(i as usize));
