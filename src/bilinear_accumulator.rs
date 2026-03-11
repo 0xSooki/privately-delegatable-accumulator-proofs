@@ -51,6 +51,38 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
     }
 
+    pub fn add(&mut self, s: &E::ScalarField) -> bool {
+        let factor =
+            DensePolynomial::from_coefficients_vec(vec![-s.to_owned(), E::ScalarField::one()]);
+        self.poly = &self.poly * &factor;
+        self.acc = self.kzg_com(&self.poly);
+        true
+    }
+
+    pub fn del(&mut self, s: &E::ScalarField) -> bool {
+        let (q, _) = Self::syn_div(&self.poly, s);
+        self.poly = q;
+
+        self.acc = self.kzg_com(&self.poly);
+        true
+    }
+
+    pub fn mem_proof_create(&self, s: &E::ScalarField) -> MembershipProof<E> {
+        todo!()
+    }
+
+    pub fn mem_ver() {
+        todo!()
+    }
+
+    pub fn non_mem_proof_create() {
+        todo!()
+    }
+
+    pub fn non_mem_ver() {
+        todo!()
+    }
+
     fn kzg_com(&self, poly: &DensePolynomial<E::ScalarField>) -> E::G1Affine {
         let powers = Powers::<E> {
             powers_of_g: Cow::Borrowed(&self.crs_g1),
@@ -79,26 +111,6 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
         let r = coeffs[0] + *c * q[0];
         (DensePolynomial::from_coefficients_vec(q), r)
-    }
-
-    pub fn add(&mut self, s: &E::ScalarField) -> bool {
-        let factor =
-            DensePolynomial::from_coefficients_vec(vec![-s.to_owned(), E::ScalarField::one()]);
-        self.poly = &self.poly * &factor;
-        self.acc = self.kzg_com(&self.poly);
-        true
-    }
-
-    pub fn del(&mut self, s: &E::ScalarField) -> bool {
-        let (q, _) = Self::syn_div(&self.poly, s);
-        self.poly = q;
-
-        self.acc = self.kzg_com(&self.poly);
-        true
-    }
-
-    pub fn mem_proof_create(&self, s: &E::ScalarField) -> MembershipProof<E> {
-        todo!()
     }
 }
 
