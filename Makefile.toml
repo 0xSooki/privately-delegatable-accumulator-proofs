@@ -15,7 +15,7 @@ args = ["plot_On_results.py"]
 
 [tasks.pipeline]
 description = "Complete process: Measurement -> Visualization"
-dependencies = ["run-bench", "plot-boxplots", "plot-scaling"]
+dependencies = ["run-bench", "plot-scaling"]
 
 [tasks.default]
 alias = "pipeline"

@@ -127,7 +127,7 @@ fn benchmark_blindproofupd(c: &mut Criterion) {
 
     group.sample_size(10);
 
-    group.measurement_time(Duration::from_secs(150));
+    group.measurement_time(Duration::from_secs(10));
 
     let sizes = [10, 200, 400, 600, 800, 1000];
 
