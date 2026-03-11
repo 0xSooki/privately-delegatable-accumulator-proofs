@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion, BenchmarkId};
 use num_bigint::BigUint;
 use privacy_preserving_accumulators::RsaAccumulator;
 use ark_std::time::Duration;
@@ -72,7 +72,6 @@ fn benchmark_unblindproof(c: &mut Criterion) {
 }
 
 
-
 fn benchmark_verblindproofupd(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
@@ -123,7 +122,57 @@ fn benchmark_verblindproofupd(c: &mut Criterion) {
 }
 
 
+fn benchmark_blindproofupd(c: &mut Criterion) {
+    let mut group = c.benchmark_group("membership_proofs");
+
+    group.sample_size(10);
+
+    group.measurement_time(Duration::from_secs(150));
+
+    let sizes = [10, 200, 400, 600, 800, 1000];
+
+    for size in sizes.iter() {
+
+        group.bench_with_input(BenchmarkId::new("blind_proof_upd", size), size, |b, &n| {
+            b.iter_batched(||{
+                let mut acc = RsaAccumulator::setup();
+    
+                let ep = acc.add(&BigUint::from(200003u32));
+    
+                let acct = acc.acc.clone();
+    
+                let proof = acc.mem_proof_create(&ep);
+    
+                let blinded_proof = acc.blind_proof(&proof);
+    
+                let mut elements_in = Vec::new();
+    
+                for i in 0..n {
+                    let elem = BigUint::from(i as u64);
+                    elements_in.push(elem);
+                }
+    
+    
+                let elements_out = vec![];
+                for elem in &elements_in {
+                    acc.add(&elem);
+                }
+    
+                (acc, elements_in, elements_out, acct, blinded_proof)
+    
+            }, |(acc, elements_in, elements_out, acct, blinded_proof)| {
+    
+                acc.blind_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+    
+            }, BatchSize::SmallInput);
+        });
+
+    }
+
+    group.finish();
+
+}
 
 
-criterion_group!(benches, benchmark_blindproof, benchmark_unblindproof, benchmark_verblindproofupd);
+criterion_group!(benches, benchmark_blindproof, benchmark_unblindproof, benchmark_verblindproofupd, benchmark_blindproofupd);
 criterion_main!(benches);

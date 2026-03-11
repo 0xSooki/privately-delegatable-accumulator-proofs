@@ -26,5 +26,5 @@ sha256 = "1.6.0"
 criterion = "0.5"
 
 [[bench]]
-name = "rsa_benchmark"
+name = "bench_rsa"
 harness = false

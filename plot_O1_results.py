@@ -19,7 +19,7 @@ BENCHMARKS = [
         "path": f"target/criterion/{BENCHMARK_GROUP}/unblind_proof/new/sample.json"
     },
     {
-        "name": "Verification Blinded Proof Update",
+        "name": "Verify Blinded Proof Update",
         "path": f"target/criterion/{BENCHMARK_GROUP}/ver_blind_proof_upd/new/sample.json"
     }
 ]

@@ -3,14 +3,19 @@ description = "Run Rust benchmarks"
 command = "cargo"
 args = ["bench"]
 
-[tasks.visualize]
+[tasks.plot-boxplots]
 description = "Run the Python script for drawing the graph"
 command = "python3"
-args = ["plot_results.py"]
+args = ["plot_O1_results.py"]
+
+[tasks.plot-scaling]
+description = "Run the Python script for drawing the graph"
+command = "python3"
+args = ["plot_On_results.py"]
 
 [tasks.pipeline]
 description = "Complete process: Measurement -> Visualization"
-dependencies = ["run-bench", "visualize"]
+dependencies = ["run-bench", "plot-boxplots", "plot-scaling"]
 
 [tasks.default]
 alias = "pipeline"
