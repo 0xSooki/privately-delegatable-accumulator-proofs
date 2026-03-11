@@ -6,7 +6,7 @@ edition = "2021"
 [features]
 default = ["rsa", "bilinear"]
 rsa = ["num-bigint", "num-traits", "num-integer", "glass_pumpkin"]
-bilinear = ["ark-ec", "ark-ff", "ark-std", "ark-bls12-381"]
+bilinear = ["ark-ec", "ark-ff", "ark-std", "ark-poly", "ark-poly-commit", "ark-bls12-381"]
 
 [dependencies]
 rand = "0.8"
@@ -19,6 +19,8 @@ glass_pumpkin = { version = "1.0", optional = true }
 ark-ec = { version = "0.4", optional = true }
 ark-ff = { version = "0.4", optional = true }
 ark-std = { version = "0.4", optional = true }
+ark-poly = { version = "0.4", optional = true }
+ark-poly-commit = { version = "0.4", optional = true }
 ark-bls12-381 = { version = "0.4", optional = true }
 Gen_Prime = "=1.1.9"
 rust-miller-rabin = "0.1.4"
