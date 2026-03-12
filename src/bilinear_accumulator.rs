@@ -86,12 +86,27 @@ impl<E: Pairing> BilinearAccumulator<E> {
         rhs == lhs
     }
 
-    pub fn non_mem_proof_create() {
-        todo!()
+    pub fn non_mem_proof_create(&self, element: &E::ScalarField) -> NonMembershipProof<E> {
+        let (q, r) = Self::syn_div(&self.poly, element);
+
+        NonMembershipProof {
+            y: r,
+            b: self.kzg_com(&q),
+        }
     }
 
-    pub fn non_mem_ver() {
-        todo!()
+    pub fn non_mem_ver(&self, element: &E::ScalarField, proof: &NonMembershipProof<E>) -> bool {
+        let g1 = self.crs_g1[0];
+        let g2 = self.crs_g2[0];
+        let g2_tau = self.crs_g2[1];
+
+        let g2_tau_minus_s = (g2_tau.into_group() - g2.into_group() * element).into_affine();
+
+        let g1_y = (g1.into_group() * proof.y).into_affine();
+
+        let lhs = E::multi_pairing([proof.b, g1_y], [g2_tau_minus_s, g2]);
+        let rhs = E::pairing(self.acc, g2);
+        lhs == rhs
     }
 
     fn kzg_com(&self, poly: &DensePolynomial<E::ScalarField>) -> E::G1Affine {
@@ -141,6 +156,18 @@ mod tests {
         }
         let proof = acc.mem_proof_create(&elements[2]);
         assert!(acc.mem_ver(&elements[2], &proof));
+    }
+
+    #[test]
+    fn non_mem_ver_passes_after_four_adds() {
+        use ark_std::test_rng;
+        let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
+        let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
+        for e in &elements {
+            acc.add(e);
+        }
+        let proof = acc.non_mem_proof_create(&ark_bls12_381::Fr::from(666));
+        assert!(acc.non_mem_ver(&ark_bls12_381::Fr::from(666), &proof));
     }
 
     #[test]
