@@ -51,60 +51,78 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
     }
 
-    pub fn add(&mut self, s: &E::ScalarField) -> bool {
-        let factor =
-            DensePolynomial::from_coefficients_vec(vec![-s.to_owned(), E::ScalarField::one()]);
+    pub fn value(&self) -> E::G1Affine {
+        self.acc
+    }
+
+    pub fn add(&mut self, element: &E::ScalarField) -> bool {
+        if self.elements.contains(&element) {
+            return false;
+        }
+        let factor = DensePolynomial::from_coefficients_vec(vec![
+            -element.to_owned(),
+            E::ScalarField::one(),
+        ]);
         self.poly = &self.poly * &factor;
         self.acc = self.kzg_com(&self.poly);
+        self.elements.insert(element.to_owned());
         true
     }
 
-    pub fn del(&mut self, s: &E::ScalarField) -> bool {
-        let (q, _) = Self::syn_div(&self.poly, s);
-        self.poly = q;
-
-        self.acc = self.kzg_com(&self.poly);
-        true
-    }
-
-    pub fn mem_proof_create(&self, element: &E::ScalarField) -> MembershipProof<E> {
-        let (q, _) = Self::syn_div(&self.poly, element);
-
-        MembershipProof {
-            pi: self.kzg_com(&q),
+    pub fn del(&mut self, element: E::ScalarField) -> bool {
+        if !self.elements.contains(&element) {
+            return false;
         }
+        let (q, r) = Self::syn_div(&self.poly, &element);
+        debug_assert!(r.is_zero(), "element is a root; r must be 0");
+        self.poly = q;
+        self.acc = self.kzg_com(&self.poly);
+        self.elements.remove(&element);
+        true
     }
 
-    pub fn mem_ver(&self, element: &E::ScalarField, proof: &MembershipProof<E>) -> bool {
+    pub fn mem_proof_create(&self, element: E::ScalarField) -> Option<MembershipProof<E>> {
+        if !self.elements.contains(&element) {
+            return None;
+        }
+        let (q, _) = Self::syn_div(&self.poly, &element);
+        Some(MembershipProof {
+            pi: self.kzg_com(&q),
+        })
+    }
+
+    pub fn non_mem_proof_create(&self, element: E::ScalarField) -> Option<NonMembershipProof<E>> {
+        if self.elements.contains(&element) {
+            return None;
+        }
+        let (q, r) = Self::syn_div(&self.poly, &element);
+        Some(NonMembershipProof {
+            y: r,
+            b: self.kzg_com(&q),
+        })
+    }
+
+    pub fn mem_ver(&self, proof: &MembershipProof<E>, element: E::ScalarField) -> bool {
         let g2 = self.crs_g2[0];
         let g2_tau = self.crs_g2[1];
 
         let g2_tau_minus_s = (g2_tau.into_group() - g2.into_group() * element).into_affine();
 
-        let lhs = E::pairing(&proof.pi, &g2_tau_minus_s);
-        let rhs = E::pairing(&self.acc, &g2);
-        rhs == lhs
+        let lhs = E::pairing(proof.pi, g2_tau_minus_s);
+        let rhs = E::pairing(self.acc, g2);
+        lhs == rhs
     }
 
-    pub fn non_mem_proof_create(&self, element: &E::ScalarField) -> NonMembershipProof<E> {
-        let (q, r) = Self::syn_div(&self.poly, element);
-
-        NonMembershipProof {
-            y: r,
-            b: self.kzg_com(&q),
-        }
-    }
-
-    pub fn non_mem_ver(&self, element: &E::ScalarField, proof: &NonMembershipProof<E>) -> bool {
+    pub fn non_mem_ver(&self, proof: &NonMembershipProof<E>, element: E::ScalarField) -> bool {
         let g1 = self.crs_g1[0];
         let g2 = self.crs_g2[0];
         let g2_tau = self.crs_g2[1];
 
         let g2_tau_minus_s = (g2_tau.into_group() - g2.into_group() * element).into_affine();
 
-        let g1_y = (g1.into_group() * proof.y).into_affine();
+        let y_g1 = (g1.into_group() * proof.y).into_affine();
 
-        let lhs = E::multi_pairing([proof.b, g1_y], [g2_tau_minus_s, g2]);
+        let lhs = E::multi_pairing([proof.b, y_g1], [g2_tau_minus_s, g2]);
         let rhs = E::pairing(self.acc, g2);
         lhs == rhs
     }
@@ -154,8 +172,10 @@ mod tests {
         for e in &elements {
             acc.add(e);
         }
-        let proof = acc.mem_proof_create(&elements[2]);
-        assert!(acc.mem_ver(&elements[2], &proof));
+        let proof = acc
+            .mem_proof_create(elements[2])
+            .expect("Membership proof creation failed");
+        assert!(acc.mem_ver(&proof, elements[2]));
     }
 
     #[test]
@@ -166,8 +186,10 @@ mod tests {
         for e in &elements {
             acc.add(e);
         }
-        let proof = acc.non_mem_proof_create(&ark_bls12_381::Fr::from(666));
-        assert!(acc.non_mem_ver(&ark_bls12_381::Fr::from(666), &proof));
+        let proof = acc
+            .non_mem_proof_create(ark_bls12_381::Fr::from(666))
+            .expect("Non-membership proof creation failed");
+        assert!(acc.non_mem_ver(&proof, ark_bls12_381::Fr::from(666)));
     }
 
     #[test]
