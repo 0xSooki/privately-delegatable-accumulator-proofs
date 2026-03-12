@@ -9,12 +9,12 @@ use rand::thread_rng;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MembershipProof<E: Pairing> {
     pub pi: E::G1Affine,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NonMembershipProof<E: Pairing> {
     pub y: E::ScalarField,
     pub b: E::G1Affine,
@@ -165,7 +165,7 @@ mod tests {
     use num_bigint::BigUint;
 
     #[test]
-    fn mem_ver_passes_after_four_adds() {
+    fn mem_ver_passes_for_member() {
         use ark_std::test_rng;
         let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
         let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn non_mem_ver_passes_after_four_adds() {
+    fn non_mem_ver_passes_for_non_member() {
         use ark_std::test_rng;
         let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
         let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
@@ -190,6 +190,28 @@ mod tests {
             .non_mem_proof_create(ark_bls12_381::Fr::from(666))
             .expect("Non-membership proof creation failed");
         assert!(acc.non_mem_ver(&proof, ark_bls12_381::Fr::from(666)));
+    }
+
+    #[test]
+    fn mem_ver_not_pass_for_non_member() {
+        use ark_std::test_rng;
+        let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
+        let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
+        for e in &elements {
+            acc.add(e);
+        }
+        assert_eq!(acc.mem_proof_create(ark_bls12_381::Fr::from(666)), None);
+    }
+
+    #[test]
+    fn non_mem_ver_not_pass_for_member() {
+        use ark_std::test_rng;
+        let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
+        let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
+        for e in &elements {
+            acc.add(e);
+        }
+        assert_eq!(acc.non_mem_proof_create(elements[2]), None);
     }
 
     #[test]
