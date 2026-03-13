@@ -1,6 +1,6 @@
 use ark_bls12_381::G1Affine;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_ff::{One, Zero};
+use ark_ff::{One, UniformRand, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_poly_commit::kzg10::{Powers, KZG10};
 use ark_std::rand::Rng;
@@ -64,7 +64,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
             E::ScalarField::one(),
         ]);
         self.poly = &self.poly * &factor;
-        self.acc = self.kzg_com(&self.poly);
+        self.acc = self.kzg_com(&None, &self.poly);
         self.elements.insert(element.to_owned());
         true
     }
@@ -76,7 +76,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let (q, r) = Self::syn_div(&self.poly, &element);
         debug_assert!(r.is_zero(), "element is a root; r must be 0");
         self.poly = q;
-        self.acc = self.kzg_com(&self.poly);
+        self.acc = self.kzg_com(&None, &self.poly);
         self.elements.remove(&element);
         true
     }
@@ -87,7 +87,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
         let (q, _) = Self::syn_div(&self.poly, &element);
         Some(MembershipProof {
-            pi: self.kzg_com(&q),
+            pi: self.kzg_com(&None, &q),
         })
     }
 
@@ -98,7 +98,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let (q, r) = Self::syn_div(&self.poly, &element);
         Some(NonMembershipProof {
             y: r,
-            b: self.kzg_com(&q),
+            b: self.kzg_com(&None, &q),
         })
     }
 
@@ -127,8 +127,25 @@ impl<E: Pairing> BilinearAccumulator<E> {
         lhs == rhs
     }
 
-    pub fn blind_mem_proof() {
-        todo!()
+    pub fn blind_mem_proof<R: Rng>(
+        &self,
+        rng: &mut R,
+        element: &E::ScalarField,
+        k: usize,
+    ) -> Option<(Vec<E::G1Affine>, E::ScalarField)> {
+        if !self.elements.contains(element) {
+            return None;
+        }
+        let r = E::ScalarField::rand(rng);
+        let (q, _) = Self::syn_div(&self.poly, element);
+        let mut crs_prime = Vec::with_capacity(k);
+        for i in 1..=k {
+            let mut coeffs = vec![E::ScalarField::zero(); i];
+            coeffs.extend(q.coeffs().iter().map(|c| *c * r));
+            let r_xi_q = DensePolynomial::from_coefficients_vec(coeffs);
+            crs_prime.push(self.kzg_com(&None, &r_xi_q));
+        }
+        Some((crs_prime, r))
     }
 
     pub fn blind_mem_proof_upd() {
@@ -159,13 +176,24 @@ impl<E: Pairing> BilinearAccumulator<E> {
         todo!()
     }
 
-    fn kzg_com(&self, poly: &DensePolynomial<E::ScalarField>) -> E::G1Affine {
-        let powers = Powers::<E> {
-            powers_of_g: Cow::Borrowed(&self.crs_g1),
-            powers_of_gamma_g: Cow::Borrowed(Default::default()),
+    fn kzg_com(
+        &self,
+        crs: &Option<Vec<E::G1Affine>>,
+        poly: &DensePolynomial<E::ScalarField>,
+    ) -> E::G1Affine {
+        let powers = if let Some(custom_crs) = crs {
+            Powers::<E> {
+                powers_of_g: Cow::Borrowed(custom_crs.as_slice()),
+                powers_of_gamma_g: Cow::Owned(vec![]),
+            }
+        } else {
+            Powers::<E> {
+                powers_of_g: Cow::Borrowed(&self.crs_g1),
+                powers_of_gamma_g: Cow::Owned(vec![]),
+            }
         };
 
-        let (com, _) = KZG10::commit(&powers, poly, None, None).expect("Commitment fialed");
+        let (com, _) = KZG10::commit(&powers, poly, None, None).expect("Commitment failed");
         com.0
     }
 
@@ -194,7 +222,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
 mod tests {
     use super::*;
     use ark_bls12_381::Bls12_381;
-    use num_bigint::BigUint;
+    use rand::thread_rng;
 
     #[test]
     fn mem_ver_passes_for_member() {
