@@ -127,6 +127,38 @@ impl<E: Pairing> BilinearAccumulator<E> {
         lhs == rhs
     }
 
+    pub fn blind_mem_proof() {
+        todo!()
+    }
+
+    pub fn blind_mem_proof_upd() {
+        todo!()
+    }
+
+    pub fn ver_blind_mem_proof_upd() {
+        todo!()
+    }
+
+    pub fn unblind_mem_proof() {
+        todo!()
+    }
+
+    pub fn blind_non_mem_proof() {
+        todo!()
+    }
+
+    pub fn blind_non_mem_proof_upd() {
+        todo!()
+    }
+
+    pub fn ver_blind_non_mem_proof_upd() {
+        todo!()
+    }
+
+    pub fn unblind_non_mem_proof() {
+        todo!()
+    }
+
     fn kzg_com(&self, poly: &DensePolynomial<E::ScalarField>) -> E::G1Affine {
         let powers = Powers::<E> {
             powers_of_g: Cow::Borrowed(&self.crs_g1),
