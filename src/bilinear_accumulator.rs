@@ -1,11 +1,8 @@
-use ark_bls12_381::G1Affine;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_ff::{One, UniformRand, Zero};
+use ark_ff::{Field, One, UniformRand, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_poly_commit::kzg10::{Powers, KZG10};
 use ark_std::rand::Rng;
-use num_bigint::BigUint;
-use rand::thread_rng;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -130,16 +127,12 @@ impl<E: Pairing> BilinearAccumulator<E> {
     pub fn blind_mem_proof<R: Rng>(
         &self,
         rng: &mut R,
-        element: &E::ScalarField,
+        q: &DensePolynomial<E::ScalarField>,
         k: usize,
     ) -> Option<(Vec<E::G1Affine>, E::ScalarField)> {
-        if !self.elements.contains(element) {
-            return None;
-        }
         let r = E::ScalarField::rand(rng);
-        let (q, _) = Self::syn_div(&self.poly, element);
         let mut crs_prime = Vec::with_capacity(k);
-        for i in 1..=k {
+        for i in 0..=k {
             let mut coeffs = vec![E::ScalarField::zero(); i];
             coeffs.extend(q.coeffs().iter().map(|c| *c * r));
             let r_xi_q = DensePolynomial::from_coefficients_vec(coeffs);
@@ -148,16 +141,32 @@ impl<E: Pairing> BilinearAccumulator<E> {
         Some((crs_prime, r))
     }
 
-    pub fn blind_mem_proof_upd() {
-        todo!()
+    pub fn blind_mem_proof_upd(
+        &self,
+        x: Vec<E::ScalarField>,
+        crs_prime: Vec<E::G1Affine>,
+    ) -> E::G1Affine {
+        let q_star = x.into_iter().fold(
+            DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]),
+            |acc, xi| {
+                let factor = DensePolynomial::from_coefficients_vec(vec![
+                    -xi.to_owned(),
+                    E::ScalarField::one(),
+                ]);
+                &acc * &factor
+            },
+        );
+        let pi_prime = self.kzg_com(&Some(crs_prime), &q_star);
+        pi_prime
     }
 
     pub fn ver_blind_mem_proof_upd() {
         todo!()
     }
 
-    pub fn unblind_mem_proof() {
-        todo!()
+    pub fn unblind_mem_proof(pi_prime: E::G1Affine, r: E::ScalarField) -> E::G1Affine {
+        let r_inv = r.inverse().expect("r must be nonzero");
+        (pi_prime.into_group() * r_inv).into_affine()
     }
 
     pub fn blind_non_mem_proof() {
@@ -291,5 +300,50 @@ mod tests {
         ]);
         assert_eq!(q, res);
         assert_eq!(r, -ark_bls12_381::Fr::from(123u64));
+    }
+
+    #[test]
+    pub fn test_blind_upd_mem_proof_after_additions() {
+        use ark_std::test_rng;
+        let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
+
+        let initial_elements: Vec<ark_bls12_381::Fr> =
+            (1u64..=3).map(ark_bls12_381::Fr::from).collect();
+        for e in &initial_elements {
+            acc.add(e);
+        }
+        let element = initial_elements[1];
+        let proof = acc
+            .mem_proof_create(element)
+            .expect("Membership proof creation failed");
+
+        let s = initial_elements.iter().fold(
+            DensePolynomial::from_coefficients_vec(vec![ark_bls12_381::Fr::one()]),
+            |acc, xi| {
+                let factor =
+                    DensePolynomial::from_coefficients_vec(vec![-*xi, ark_bls12_381::Fr::one()]);
+                &acc * &factor
+            },
+        );
+        let (q, _) = BilinearAccumulator::<Bls12_381>::syn_div(&s, &element);
+
+        let added_elements: Vec<ark_bls12_381::Fr> =
+            (4u64..=5).map(ark_bls12_381::Fr::from).collect();
+        let num_added = added_elements.len();
+
+        let (mut crs_prime, r) = acc
+            .blind_mem_proof(&mut test_rng(), &q, num_added)
+            .expect("Blind membership proof creation failed");
+
+        for e in &added_elements {
+            acc.add(e);
+        }
+
+        let pi_prime = acc.blind_mem_proof_upd(added_elements, crs_prime);
+
+        let pi = BilinearAccumulator::<Bls12_381>::unblind_mem_proof(pi_prime, r);
+        let updated_proof = MembershipProof { pi };
+
+        assert!(acc.mem_ver(&updated_proof, element));
     }
 }
