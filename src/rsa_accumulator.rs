@@ -17,7 +17,7 @@ type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
 
 extern crate primes;
 
-const KEY_SIZE: u64 = 128; // This key size is just for demonstration
+const KEY_SIZE: u64 = 256; // This key size is just for demonstration
 
 #[derive(Clone, Debug)]
 pub struct RsaAccumulator {
@@ -163,7 +163,10 @@ impl RsaAccumulator {
     }
 
     pub fn non_mem_ver(&self, proof: &(BigUint, BigUint), x: &BigUint) -> bool {
-        (self.acc.modpow(&proof.0, &self.n) * &proof.1.modpow(&x, &self.n)) % &self.n
+        let x_str = x.to_string();
+        let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
+        let x_prime = BigUint::from(prime_u128);
+        (self.acc.modpow(&proof.0, &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n
             == self.g
     }
 
@@ -205,7 +208,7 @@ impl RsaAccumulator {
         acc_t: &BigUint,
         blinded_proof: &BigUint,
         upd_blinded_proof: &(BigUint, BigUint),
-        aux: &Aux
+        aux: &Aux,
     ) -> bool {
         let pi1 = &aux.0;
         let pi2 = &aux.1;
@@ -227,29 +230,27 @@ impl RsaAccumulator {
     }
 
     pub fn blind_non_mem_proof(&self, x: &BigUint) -> (BigUint, BigUint) {
-        if self.set.contains(x) {
+        let x_str = x.to_string();
+        let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
+        let x_prime = BigUint::from(prime_u128);
+
+        if self.set.contains(&x_prime) {
             return (BigUint::from(0u32), BigUint::from(1u32));
         } else {
             let mut rng = thread_rng();
             let q = rng.gen_biguint(128);
-            
-            let blinded_non_mem_proof = x * &q;
 
-            return (blinded_non_mem_proof, q)
+            let blinded_non_mem_proof = x_prime * &q;
+
+            return (blinded_non_mem_proof, q);
         }
-
     }
-    
 
-    pub fn blind_non_mem_proof_upd(&self,
-        blinded_non_mem_proof: &BigUint) -> (BigUint, BigUint) {
+    pub fn blind_non_mem_proof_upd(&self, blinded_non_mem_proof: &BigUint) -> (BigUint, BigUint) {
         let p = RsaAccumulator::calculate_product(&self.set);
         let s = BigInt::from(p);
 
-        let bnmp_str = blinded_non_mem_proof.to_string();
-        let prime_u128 = self.group.hash_to_prime(bnmp_str.as_bytes());
-        let bnmp_prime = BigUint::from(prime_u128);
-        let bnmp_str_int = BigInt::from(bnmp_prime.clone());
+        let bnmp_str_int = BigInt::from(blinded_non_mem_proof.clone());
 
         let ExtendedGcd { gcd: _, x, y } = Integer::extended_gcd(&s, &bnmp_str_int);
         if let Some(t) = self.totient.as_ref() {
@@ -267,32 +268,36 @@ impl RsaAccumulator {
         }
     }
 
-
-    pub fn ver_blind_non_mem_proof_upd(&self,
+    pub fn ver_blind_non_mem_proof_upd(
+        &self,
         acc_t_prime: &BigUint,
         blinded_non_mem_proof: &BigUint,
-        upd_blinded_non_mem_proof: &(BigUint, BigUint)) -> bool {
+        upd_blinded_non_mem_proof: &(BigUint, BigUint),
+    ) -> bool {
         let a = &upd_blinded_non_mem_proof.0;
         let b = &upd_blinded_non_mem_proof.1;
         let y = blinded_non_mem_proof;
 
-        if self.g == acc_t_prime.modpow(&a, &self.n)*b.modpow(&y, &self.n) {
+        if self.g == acc_t_prime.modpow(&a, &self.n) * b.modpow(&y, &self.n) {
             return true;
         } else {
             return false;
         }
     }
 
-    pub fn unblind_non_mem_proof(&self, st: &BigUint, upd_blinded_non_mem_proof: &(BigUint, BigUint)) -> (BigUint, BigUint) {
+    pub fn unblind_non_mem_proof(
+        &self,
+        st: &BigUint,
+        upd_blinded_non_mem_proof: &(BigUint, BigUint),
+    ) -> (BigUint, BigUint) {
         let a = &upd_blinded_non_mem_proof.0;
         let b = &upd_blinded_non_mem_proof.1;
         let q = st;
         let b_prime = b.modpow(&q, &self.n);
 
         let upd_unblinded_non_mem_proof = (a.clone(), b_prime);
-        return upd_unblinded_non_mem_proof
+        return upd_unblinded_non_mem_proof;
     }
-
 
     fn reduce_exp(&self, exp: BigUint) -> BigUint {
         match &self.totient {
@@ -419,34 +424,29 @@ mod tests {
         ));
     }
 
-
     #[test]
     fn test_blind_unblind_non_mem() {
         let mut acc = RsaAccumulator::setup();
-
-        let element = BigUint::from(7 as usize);
-        let ep: BigUint = acc.add(&element);
 
         for i in 2..5 {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.non_mem_proof_create(&ep);
-        //QUESTION itt a proof-nak nem (BigUint, BigUint) kéne lennie? a non_mem_proof_create valamiért (BigUint, BigUint, BigUint) ad vissza, ahol ugye x-et is visszaadja 'a' és 'B=g^b' mellett is, amit amugy a nonmemver hasznal is, de így akkor az unblind_non_mem_proof fn kéne megváltoztatni ami ugye csak egy (BigUint, BigUint) ad vissza
-        let blinded_proof = acc.blind_non_mem_proof(&element);
+        let non_member = BigUint::from(7 as usize);
 
-        assert!(
-            blinded_proof.0 != element,
-            "Proof is not blinded successfully"
-        );
+        let proof = acc.non_mem_proof_create(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+
+        for i in 10..12 {
+            acc.add(&BigUint::from(i as usize));
+        }
 
         let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
-        println!("{:?}, {:?}", proof, unblinded_proof);
         assert!(
-            unblinded_proof == proof,
-            "Proof is not unblinded successfully"
+            acc.non_mem_ver(&unblinded_proof, &non_member),
+            "Non-membership proof should verify after unblinding"
         );
     }
 }
