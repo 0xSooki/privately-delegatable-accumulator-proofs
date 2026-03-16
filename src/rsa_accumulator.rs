@@ -134,7 +134,7 @@ impl RsaAccumulator {
         proof
     }
 
-    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigUint, BigUint, BigUint) {
+    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigUint, BigUint) {
         let p = RsaAccumulator::calculate_product(&self.set);
         let s = BigInt::from(p);
 
@@ -152,7 +152,7 @@ impl RsaAccumulator {
             let b = ((y % &totient_int + &totient_int) % &totient_int)
                 .to_biguint()
                 .unwrap();
-            (x_prime, a, self.g.modpow(&b, &self.n))
+            (a, self.g.modpow(&b, &self.n))
         } else {
             todo!()
         }
@@ -162,8 +162,8 @@ impl RsaAccumulator {
         proof.modpow(&x, &self.n) == self.acc
     }
 
-    pub fn non_mem_ver(&self, proof: &(BigUint, BigUint, BigUint), x: &BigUint) -> bool {
-        (self.acc.modpow(&proof.1, &self.n) * &proof.2.modpow(&proof.0, &self.n)) % &self.n
+    pub fn non_mem_ver(&self, proof: &(BigUint, BigUint), x: &BigUint) -> bool {
+        (self.acc.modpow(&proof.0, &self.n) * &proof.1.modpow(&x, &self.n)) % &self.n
             == self.g
     }
 
@@ -440,7 +440,7 @@ mod tests {
             "Proof is not blinded successfully"
         );
 
-        let upd_blind_non_mem_proof = blind_non_mem_proof_upd(blinded_proof.0);
+        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
         println!("{:?}, {:?}", proof, unblinded_proof);
