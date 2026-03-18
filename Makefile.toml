@@ -11,7 +11,7 @@ args = ["plot_O1_results.py"]
 [tasks.plot-scaling]
 description = "Run the Python script for drawing the graph"
 command = "python3"
-args = ["plot_On_results.py"]
+args = ["figures/plot_On_results.py"]
 
 [tasks.pipeline]
 description = "Complete process: Measurement -> Visualization"

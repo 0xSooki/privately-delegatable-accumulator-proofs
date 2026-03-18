@@ -3,7 +3,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 use num_bigint::BigUint;
 use privacy_preserving_accumulators::RsaAccumulator;
 
-fn benchmark_blindproof(c: &mut Criterion) {
+fn benchmark_blind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
     group.sample_size(100);
@@ -26,7 +26,7 @@ fn benchmark_blindproof(c: &mut Criterion) {
                 (acc, proof)
             },
             |(acc, proof)| {
-                acc.blind_proof(&proof);
+                acc.blind_mem_proof(&proof);
             },
             BatchSize::SmallInput,
         );
@@ -35,7 +35,7 @@ fn benchmark_blindproof(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_unblindproof(c: &mut Criterion) {
+fn benchmark_unblind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
     group.sample_size(100);
@@ -54,12 +54,12 @@ fn benchmark_unblindproof(c: &mut Criterion) {
 
                 let proof = acc.mem_proof_create(&ep);
 
-                let blinded_proof = acc.blind_proof(&proof);
+                let blinded_proof = acc.blind_mem_proof(&proof);
 
                 (acc, blinded_proof)
             },
             |(acc, blindedproof)| {
-                acc.unblind_proof(&blindedproof.0, &blindedproof.1);
+                acc.unblind_mem_proof(&blindedproof.0, &blindedproof.1);
             },
             BatchSize::SmallInput,
         );
@@ -68,7 +68,7 @@ fn benchmark_unblindproof(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_verblindproofupd(c: &mut Criterion) {
+fn benchmark_ver_blind_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
     group.sample_size(100);
@@ -86,7 +86,7 @@ fn benchmark_verblindproofupd(c: &mut Criterion) {
 
                 let proof = acc.mem_proof_create(&ep);
 
-                let blinded_proof = acc.blind_proof(&proof);
+                let blinded_proof = acc.blind_mem_proof(&proof);
 
                 let elements_in = vec![
                     BigUint::from(65537u32),
@@ -102,12 +102,12 @@ fn benchmark_verblindproofupd(c: &mut Criterion) {
                 }
 
                 let updated_blind_proof =
-                    acc.blind_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+                    acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
 
                 (acc, acct, blinded_proof, updated_blind_proof)
             },
             |(acc, acct, blindedproof, updated_blind_proof)| {
-                acc.ver_blind_proof_upd(
+                acc.ver_blind_mem_proof_upd(
                     &acct,
                     &blindedproof.0,
                     &updated_blind_proof.0,
@@ -121,7 +121,7 @@ fn benchmark_verblindproofupd(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_blindproofupd(c: &mut Criterion) {
+fn benchmark_blind_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
     group.sample_size(10);
@@ -131,7 +131,7 @@ fn benchmark_blindproofupd(c: &mut Criterion) {
     let sizes = [10, 200, 400, 600, 800, 1000];
 
     for size in sizes.iter() {
-        group.bench_with_input(BenchmarkId::new("blind_proof_upd", size), size, |b, &n| {
+        group.bench_with_input(BenchmarkId::new("blind_mem_proof_upd", size), size, |b, &n| {
             b.iter_batched(
                 || {
                     let mut acc = RsaAccumulator::setup();
@@ -142,7 +142,7 @@ fn benchmark_blindproofupd(c: &mut Criterion) {
 
                     let proof = acc.mem_proof_create(&ep);
 
-                    let blinded_proof = acc.blind_proof(&proof);
+                    let blinded_proof = acc.blind_mem_proof(&proof);
 
                     let mut elements_in = Vec::new();
 
@@ -159,7 +159,54 @@ fn benchmark_blindproofupd(c: &mut Criterion) {
                     (acc, elements_in, elements_out, acct, blinded_proof)
                 },
                 |(acc, elements_in, elements_out, acct, blinded_proof)| {
-                    acc.blind_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+                    acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+                },
+                BatchSize::SmallInput,
+            );
+        });
+    }
+
+    group.finish();
+}
+
+
+
+
+fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
+    let mut group = c.benchmark_group("non_membership_proofs");
+
+    group.sample_size(10);
+
+    group.measurement_time(Duration::from_secs(10));
+
+    let sizes = [10, 200, 400, 600, 800, 1000];
+
+    for size in sizes.iter() {
+        group.bench_with_input(BenchmarkId::new("blind_non_mem_proof_upd", size), size, |b, &n| {
+            b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup();
+
+                    let non_member = BigUint::from(200003u32);
+
+                    let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    //let elements_out: Vec<BigUint> = vec![];
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+
+                    (acc, blinded_non_mem_proof)
+                },
+                |(acc, blinded_non_mem_proof)| {
+                    acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
                 },
                 BatchSize::SmallInput,
             );
@@ -171,9 +218,10 @@ fn benchmark_blindproofupd(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    benchmark_blindproof,
-    benchmark_unblindproof,
-    benchmark_verblindproofupd,
-    benchmark_blindproofupd
+    benchmark_blind_mem_proof,
+    benchmark_unblind_mem_proof,
+    benchmark_ver_blind_mem_proof_upd,
+    benchmark_blind_mem_proof_upd,
+    benchmark_blind_non_mem_proof_upd
 );
 criterion_main!(benches);

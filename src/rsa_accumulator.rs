@@ -473,6 +473,7 @@ mod tests {
         let upd_blind_proof =
             acc.blind_non_mem_proof_upd(&blinded_proof.0);
 
+
         assert!(acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof), "Couldnt verify");
     }
 }
