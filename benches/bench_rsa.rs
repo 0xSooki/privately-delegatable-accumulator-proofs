@@ -1,6 +1,7 @@
 use ark_std::time::Duration;
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_bigint::BigUint;
+use num_traits::bounds::UpperBounded;
 use privacy_preserving_accumulators::RsaAccumulator;
 
 fn benchmark_blind_mem_proof(c: &mut Criterion) {
@@ -10,7 +11,7 @@ fn benchmark_blind_mem_proof(c: &mut Criterion) {
 
     let element = BigUint::from(7 as usize);
 
-    group.bench_function("blind_proof", |b| {
+    group.bench_function("blind_mem_proof", |b| {
         b.iter_batched(
             || {
                 let mut acc = RsaAccumulator::setup();
@@ -40,7 +41,7 @@ fn benchmark_unblind_mem_proof(c: &mut Criterion) {
 
     group.sample_size(100);
 
-    group.bench_function("unblind_proof", |b| {
+    group.bench_function("unblind_mem_proof", |b| {
         b.iter_batched(
             || {
                 let mut acc = RsaAccumulator::setup();
@@ -75,7 +76,7 @@ fn benchmark_ver_blind_mem_proof_upd(c: &mut Criterion) {
 
     group.measurement_time(Duration::from_secs(10));
 
-    group.bench_function("ver_blind_proof_upd", |b| {
+    group.bench_function("ver_blind_mem_proof_upd", |b| {
         b.iter_batched(
             || {
                 let mut acc = RsaAccumulator::setup();
@@ -171,6 +172,114 @@ fn benchmark_blind_mem_proof_upd(c: &mut Criterion) {
 
 
 
+fn benchmark_blind_non_mem_proof(c: &mut Criterion) {
+    let mut group = c.benchmark_group("non_membership_proofs");
+
+    group.sample_size(100);
+
+    group.bench_function("blind_non_mem_proof", |b| {
+        b.iter_batched(
+            || {
+                let mut acc = RsaAccumulator::setup();
+
+                for i in 2..5 {
+                    acc.add(&BigUint::from(i as usize));
+                }
+
+                let non_member = BigUint::from(7 as usize);
+
+                (acc, non_member)
+            },
+            |(acc, non_member)| {
+                acc.blind_non_mem_proof(&non_member);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.finish();
+}
+
+fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
+    let mut group = c.benchmark_group("non_membership_proofs");
+
+    group.sample_size(100);
+
+    group.bench_function("unblind_non_mem_proof", |b| {
+        b.iter_batched(
+            || {
+                let mut acc = RsaAccumulator::setup();
+
+                for i in 2..5 {
+                    acc.add(&BigUint::from(i as usize));
+                }
+
+                let non_member = BigUint::from(7 as usize);
+
+                let blinded_proof = acc.blind_non_mem_proof(&non_member);
+
+                for i in 10..12 {
+                    acc.add(&BigUint::from(i as usize));
+                }
+        
+                let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);        
+
+                (acc, blinded_proof, upd_blind_non_mem_proof)
+            },
+            |(acc, blindedproof, upd_blind_non_mem_proof)| {
+                acc.unblind_non_mem_proof(&blindedproof.1, &upd_blind_non_mem_proof);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.finish();
+}
+
+fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
+    let mut group = c.benchmark_group("non_membership_proofs");
+
+    group.sample_size(100);
+
+    group.measurement_time(Duration::from_secs(10));
+
+    group.bench_function("ver_blind_non_mem_proof_upd", |b| {
+        b.iter_batched(
+            || {
+                let mut acc = RsaAccumulator::setup();
+
+                let non_member = BigUint::from(200003u32);
+
+                let blinded_proof = acc.blind_non_mem_proof(&non_member);
+
+                let elements_in = vec![
+                    BigUint::from(65537u32),
+                    BigUint::from(100003u32),
+                    BigUint::from(104729u32),
+                    BigUint::from(1299709u32),
+                    BigUint::from(15485863u32),
+                ];
+
+                for elem in &elements_in {
+                    acc.add(&elem);
+                }
+
+                let acct_prime = acc.acc.clone();
+
+                let updated_blind_proof =
+                    acc.blind_non_mem_proof_upd(&blinded_proof.0);
+
+                (acc, acct_prime, blinded_proof, updated_blind_proof)
+            },
+            |(acc, acct_prime, blindedproof, updated_blind_proof)| {
+                acc.ver_blind_non_mem_proof_upd(&acct_prime, &blindedproof.0, &updated_blind_proof)
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.finish();
+}
 
 fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
@@ -222,6 +331,9 @@ criterion_group!(
     benchmark_unblind_mem_proof,
     benchmark_ver_blind_mem_proof_upd,
     benchmark_blind_mem_proof_upd,
+    benchmark_blind_non_mem_proof,
+    benchmark_unblind_non_mem_proof,
+    benchmark_ver_blind_non_mem_proof_upd,
     benchmark_blind_non_mem_proof_upd
 );
 criterion_main!(benches);

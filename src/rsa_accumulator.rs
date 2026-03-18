@@ -374,6 +374,23 @@ mod tests {
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
+/*
+        let elements_in = vec![
+            BigUint::from(65537u32),
+            BigUint::from(100003u32),
+            BigUint::from(104729u32),
+            BigUint::from(1299709u32),
+            BigUint::from(15485863u32),
+        ];
+
+        let elements_out = vec![];
+        for elem in &elements_in {
+            acc.add(&elem);
+        }
+
+        let upd_blind_non_mem_proof = acc.blind_mem_proof_upd(elements_in, elements_out, &acct_prime, &blinded_proof);
+
+*/
         assert!(
             blinded_proof.0 != proof,
             "Proof is not blinded successfully"
