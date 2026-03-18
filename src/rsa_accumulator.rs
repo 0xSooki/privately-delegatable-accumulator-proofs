@@ -82,7 +82,6 @@ impl RsaAccumulator {
         let x_str = x.to_string();
         let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
         let x_prime = BigUint::from(prime_u128);
-        //TODO find a crate that converts hash to prime determinstically
 
         // This ensures x is coprime to the totient, so its modular inverse exists.
         // Otherwise, removing the element may fail if the inverse does not exist.
@@ -278,7 +277,7 @@ impl RsaAccumulator {
         let b = &upd_blinded_non_mem_proof.1;
         let y = blinded_non_mem_proof;
 
-        if self.g == acc_t_prime.modpow(&a, &self.n) * b.modpow(&y, &self.n) {
+        if self.g == (acc_t_prime.modpow(&a, &self.n) * b.modpow(&y, &self.n)) % &self.n {
             return true;
         } else {
             return false;
@@ -389,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_blind_proof_upd_ver() {
+    fn test_blind_mem_proof_upd_ver() {
         let mut acc = RsaAccumulator::setup();
 
         let ep = acc.add(&BigUint::from(200003u32));
@@ -434,7 +433,6 @@ mod tests {
 
         let non_member = BigUint::from(7 as usize);
 
-        let proof = acc.non_mem_proof_create(&non_member);
         let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         for i in 10..12 {
@@ -448,5 +446,33 @@ mod tests {
             acc.non_mem_ver(&unblinded_proof, &non_member),
             "Non-membership proof should verify after unblinding"
         );
+    }
+
+    #[test]
+    fn test_blind_non_mem_proof_upd_ver() {
+        let mut acc = RsaAccumulator::setup();
+
+        let non_member = BigUint::from(200003u32);
+
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+
+        let elements_in = vec![
+            BigUint::from(65537u32),
+            BigUint::from(100003u32),
+            BigUint::from(104729u32),
+            BigUint::from(1299709u32),
+            BigUint::from(15485863u32),
+        ];
+
+        for elem in &elements_in {
+            acc.add(&elem);
+        }
+
+        let acctprime = acc.acc.clone();
+
+        let upd_blind_proof =
+            acc.blind_non_mem_proof_upd(&blinded_proof.0);
+
+        assert!(acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof), "Couldnt verify");
     }
 }
