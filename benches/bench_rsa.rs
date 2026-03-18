@@ -1,8 +1,8 @@
-use ark_std::time::Duration;
+use ark_bls12_381::{Bls12_381, Fr};
+use ark_std::{test_rng, time::Duration};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_bigint::BigUint;
-use num_traits::bounds::UpperBounded;
-use privacy_preserving_accumulators::RsaAccumulator;
+use privacy_preserving_accumulators::{BilinearAccumulator, RsaAccumulator};
 
 fn benchmark_blind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
@@ -132,45 +132,47 @@ fn benchmark_blind_mem_proof_upd(c: &mut Criterion) {
     let sizes = [10, 200, 400, 600, 800, 1000];
 
     for size in sizes.iter() {
-        group.bench_with_input(BenchmarkId::new("blind_mem_proof_upd", size), size, |b, &n| {
-            b.iter_batched(
-                || {
-                    let mut acc = RsaAccumulator::setup();
+        group.bench_with_input(
+            BenchmarkId::new("blind_mem_proof_upd", size),
+            size,
+            |b, &n| {
+                b.iter_batched(
+                    || {
+                        let mut acc = RsaAccumulator::setup();
 
-                    let ep = acc.add(&BigUint::from(200003u32));
+                        let ep = acc.add(&BigUint::from(200003u32));
 
-                    let acct = acc.acc.clone();
+                        let acct = acc.acc.clone();
 
-                    let proof = acc.mem_proof_create(&ep);
+                        let proof = acc.mem_proof_create(&ep);
 
-                    let blinded_proof = acc.blind_mem_proof(&proof);
+                        let blinded_proof = acc.blind_mem_proof(&proof);
 
-                    let mut elements_in = Vec::new();
+                        let mut elements_in = Vec::new();
 
-                    for i in 0..n {
-                        let elem = BigUint::from(i as u64);
-                        elements_in.push(elem);
-                    }
+                        for i in 0..n {
+                            let elem = BigUint::from(i as u64);
+                            elements_in.push(elem);
+                        }
 
-                    let elements_out = vec![];
-                    for elem in &elements_in {
-                        acc.add(&elem);
-                    }
+                        let elements_out = vec![];
+                        for elem in &elements_in {
+                            acc.add(&elem);
+                        }
 
-                    (acc, elements_in, elements_out, acct, blinded_proof)
-                },
-                |(acc, elements_in, elements_out, acct, blinded_proof)| {
-                    acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
-                },
-                BatchSize::SmallInput,
-            );
-        });
+                        (acc, elements_in, elements_out, acct, blinded_proof)
+                    },
+                    |(acc, elements_in, elements_out, acct, blinded_proof)| {
+                        acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
     }
 
     group.finish();
 }
-
-
 
 fn benchmark_blind_non_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
@@ -221,8 +223,8 @@ fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
                 for i in 10..12 {
                     acc.add(&BigUint::from(i as usize));
                 }
-        
-                let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);        
+
+                let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
 
                 (acc, blinded_proof, upd_blind_non_mem_proof)
             },
@@ -266,8 +268,7 @@ fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
 
                 let acct_prime = acc.acc.clone();
 
-                let updated_blind_proof =
-                    acc.blind_non_mem_proof_upd(&blinded_proof.0);
+                let updated_blind_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
 
                 (acc, acct_prime, blinded_proof, updated_blind_proof)
             },
@@ -291,35 +292,129 @@ fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
     let sizes = [10, 200, 400, 600, 800, 1000];
 
     for size in sizes.iter() {
-        group.bench_with_input(BenchmarkId::new("blind_non_mem_proof_upd", size), size, |b, &n| {
+        group.bench_with_input(
+            BenchmarkId::new("blind_non_mem_proof_upd", size),
+            size,
+            |b, &n| {
+                b.iter_batched(
+                    || {
+                        let mut acc = RsaAccumulator::setup();
+
+                        let non_member = BigUint::from(200003u32);
+
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+
+                        let mut elements_in = Vec::new();
+
+                        for i in 0..n {
+                            let elem = BigUint::from(i as u64);
+                            elements_in.push(elem);
+                        }
+
+                        //let elements_out: Vec<BigUint> = vec![];
+                        for elem in &elements_in {
+                            acc.add(&elem);
+                        }
+
+                        (acc, blinded_non_mem_proof)
+                    },
+                    |(acc, blinded_non_mem_proof)| {
+                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn benchmark_accumulator_compare(c: &mut Criterion) {
+    let mut group = c.benchmark_group("accumulator_compare");
+
+    group.sample_size(50);
+
+    let sizes = [10usize, 100, 500];
+
+    for size in sizes.iter() {
+        group.bench_with_input(BenchmarkId::new("rsa_add_n", size), size, |b, &n| {
             b.iter_batched(
                 || {
                     let mut acc = RsaAccumulator::setup();
-
-                    let non_member = BigUint::from(200003u32);
-
-                    let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
-
-                    let mut elements_in = Vec::new();
-
-                    for i in 0..n {
-                        let elem = BigUint::from(i as u64);
-                        elements_in.push(elem);
-                    }
-
-                    //let elements_out: Vec<BigUint> = vec![];
-                    for elem in &elements_in {
+                    let elements: Vec<BigUint> = (1u64..=n as u64).map(BigUint::from).collect();
+                    (acc, elements)
+                },
+                |(mut acc, elements)| {
+                    for elem in elements {
                         acc.add(&elem);
                     }
-
-                    (acc, blinded_non_mem_proof)
-                },
-                |(acc, blinded_non_mem_proof)| {
-                    acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
                 },
                 BatchSize::SmallInput,
             );
         });
+
+        group.bench_with_input(BenchmarkId::new("bilinear_add_n", size), size, |b, &n| {
+            b.iter_batched(
+                || {
+                    let mut rng = test_rng();
+                    let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut rng, n + 1);
+                    let elements: Vec<Fr> = (1u64..=n as u64).map(Fr::from).collect();
+                    (acc, elements)
+                },
+                |(mut acc, elements)| {
+                    for elem in elements {
+                        acc.add(&elem);
+                    }
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        group.bench_with_input(BenchmarkId::new("rsa_mem_proof", size), size, |b, &n| {
+            b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup();
+                    let mut target_prime = None;
+                    for i in 1u64..=n as u64 {
+                        let prime = acc.add(&BigUint::from(i));
+                        if i == 1 {
+                            target_prime = Some(prime);
+                        }
+                    }
+                    (acc, target_prime.expect("target prime"))
+                },
+                |(mut acc, target_prime)| {
+                    let proof = acc.mem_proof_create(&target_prime);
+                    let _ = acc.mem_ver(&proof, &target_prime);
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        group.bench_with_input(
+            BenchmarkId::new("bilinear_mem_proof", size),
+            size,
+            |b, &n| {
+                b.iter_batched(
+                    || {
+                        let mut rng = test_rng();
+                        let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut rng, n + 1);
+                        let target = Fr::from(1u64);
+                        for i in 1u64..=n as u64 {
+                            let element = Fr::from(i);
+                            acc.add(&element);
+                        }
+                        (acc, target)
+                    },
+                    |(acc, target)| {
+                        let proof = acc.mem_proof_create(target).expect("membership proof");
+                        let _ = acc.mem_ver(&proof, target);
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
     }
 
     group.finish();
@@ -334,6 +429,7 @@ criterion_group!(
     benchmark_blind_non_mem_proof,
     benchmark_unblind_non_mem_proof,
     benchmark_ver_blind_non_mem_proof_upd,
-    benchmark_blind_non_mem_proof_upd
+    benchmark_blind_non_mem_proof_upd,
+    benchmark_accumulator_compare
 );
 criterion_main!(benches);
