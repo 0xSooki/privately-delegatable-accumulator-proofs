@@ -1,5 +1,6 @@
 import os
 import json
+from matplotlib.ticker import LogLocator
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -80,7 +81,7 @@ print("\n--- Statistical Summary ---")
 print(df.groupby("Operation")["Time (ms)"].describe())
 
 # Visualization
-plt.figure(figsize=(12, 8))
+fig, ax = plt.subplots(figsize=(12,8))
 sns.set_theme(style="whitegrid")
 
 op_names = df["Operation"].unique()
@@ -106,9 +107,14 @@ for patch, color in zip(bplot["boxes"], colors):
     patch.set_facecolor(color)
     patch.set_alpha(0.8)
 
+ax.set_yscale('log')
+ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs='auto', numticks=12))
+ax.yaxis.set_minor_formatter(plt.NullFormatter())
+ax.grid(visible=True, which='major', axis='both', color='gray', linestyle='-', alpha=0.5)
+
 plt.xticks(range(1, len(op_names) + 1), op_names, rotation=10, ha="right")
 plt.ylabel("Time (ms)", fontsize=12, fontweight="bold")
-plt.title("O(1) Proof Operation Comparison")
+plt.title("RSA O(1) Proof Operation Comparison")
 
 output_file = "figures/images/membership_proofs_boxplot.png"
 plt.tight_layout()

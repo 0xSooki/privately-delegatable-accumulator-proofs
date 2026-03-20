@@ -281,7 +281,7 @@ fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
 
     group.finish();
 }
-
+ 
 fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
 

@@ -252,6 +252,7 @@ impl RsaAccumulator {
         let bnmp_str_int = BigInt::from(blinded_non_mem_proof.clone());
 
         let ExtendedGcd { gcd: _, x, y } = Integer::extended_gcd(&s, &bnmp_str_int);
+        
         if let Some(t) = self.totient.as_ref() {
             let totient_int = t.to_bigint().unwrap();
             let a = ((x % &totient_int + &totient_int) % &totient_int)
@@ -263,7 +264,30 @@ impl RsaAccumulator {
             let upd_blinded_non_mem_proof = (a, self.g.modpow(&b, &self.n));
             upd_blinded_non_mem_proof
         } else {
-            todo!()
+            
+            let mut a_int = x % &bnmp_str_int;
+            if a_int < BigInt::ZERO {
+                a_int += &bnmp_str_int;
+            }
+            let a = a_int.to_biguint().unwrap();
+
+            let b_int = (BigInt::from(1) - &a_int * &s) / &bnmp_str_int;
+
+            let g_int = BigInt::from(self.g.clone());
+            let n_int = BigInt::from(self.n.clone());
+            
+            let ExtendedGcd { gcd: _, x: inv_x, y: _ } = Integer::extended_gcd(&g_int, &n_int);
+            let mut inv_g_int = inv_x % &n_int;
+            if inv_g_int < BigInt::ZERO {
+                inv_g_int += &n_int;
+            }
+
+            let inv_g = inv_g_int.to_biguint().unwrap();
+
+            let abs_b = (-b_int).to_biguint().unwrap();
+
+            let upd_blinded_non_mem_proof = (a, inv_g.modpow(&abs_b, &self.n));
+                upd_blinded_non_mem_proof
         }
     }
 

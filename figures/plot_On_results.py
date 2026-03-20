@@ -5,9 +5,23 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Configuration
-BASE_DIR = "target/criterion/accumulator_compare"
+BENCHMARKS_UPDATES = [
+    {
+        "label": "Blind Membership Proof Update",
+        "base_dir": "target/criterion/membership_proofs",
+        "bench_name": "blind_mem_proof_upd",
+        "linestyle": "-"
+    },
+    {
+        "label": "Blind Non-Membership Proof Update",
+        "base_dir": "target/criterion/non_membership_proofs",
+        "bench_name": "blind_non_mem_proof_upd",
+        "linestyle": "--"
+    }
+]
 
-BENCHMARKS = {
+BASE_DIR_COMPARE = "target/criterion/accumulator_compare"
+BENCHMARKS_COMPARE = {
     "rsa_add_n": "RSA Add",
     "bilinear_add_n": "Bilinear Add",
     "rsa_mem_proof": "RSA Membership Proof",
@@ -50,15 +64,24 @@ def load_criterion_data(base_dir, bench_name):
 # Main Execution
 print("Loading samples from Criterion..")
 series = {}
-for bench_name, label in BENCHMARKS.items():
-    df = load_criterion_data(BASE_DIR, bench_name)
+
+for bench_name, label in BENCHMARKS_COMPARE.items():
+    df = load_criterion_data(BASE_DIR_COMPARE, bench_name)
     if df.empty:
         continue
     df = df.sort_values("Elements")
     series[label] = df
 
+
+for bench in BENCHMARKS_UPDATES:
+    df = load_criterion_data(bench["base_dir"], bench["bench_name"])
+    if not df.empty:
+        df = df.sort_values("Elements")
+        series[bench["label"]] = df
+
+
 if not series:
-    print(f"No data found. Check the {BASE_DIR} path")
+    print(f"No data found. Check the {BASE_DIR_COMPARE} path")
     exit()
 
 for label, df in series.items():
@@ -121,5 +144,36 @@ output_file_mem = "figures/images/accumulator_mem_proof_scaling.png"
 plt.tight_layout()
 plt.savefig(output_file_mem, dpi=300)
 print(f"\nSuccess! Chart saved to: {output_file_mem}")
+
+
+# Visualization: Update Blind Proofs Scaling
+plt.figure(figsize=(10, 6))
+sns.set_theme(style="whitegrid")
+
+for bench in BENCHMARKS_UPDATES:
+    label = bench["label"]
+    if label in series:
+        df = series[label]
+        
+        plt.plot(
+            df["Elements"], 
+            df["Time (s)"], 
+            marker="o", 
+            linestyle=bench["linestyle"], 
+            linewidth=2.5, 
+            markersize=7, 
+            label=label
+        )
+
+
+plt.xlabel("Number of elements", fontsize=12)
+plt.ylabel("Time (seconds)", fontsize=12)
+plt.title("Trapdoorless Accumulator Blind Update Proof Scaling")
+plt.grid(True, linestyle="--", alpha=0.7)
+plt.legend()
+plt.tight_layout()
+output_file_upd = "figures/images/trapdoorless_accumulator_blind_update_proof_scaling.png"
+plt.savefig(output_file_upd, dpi=300)
+print(f"\nSuccess! Chart saved to: {output_file_upd}")
 
 plt.show()
