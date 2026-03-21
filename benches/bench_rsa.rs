@@ -3,7 +3,7 @@ use ark_std::{test_rng, time::Duration};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_bigint::BigUint;
 use privacy_preserving_accumulators::{BilinearAccumulator, RsaAccumulator};
-/*
+
 fn benchmark_blind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
@@ -281,7 +281,7 @@ fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
 
     group.finish();
 }
-  */
+  
 fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
 
@@ -329,7 +329,7 @@ fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
 
     group.finish();
 }
-/*
+
 fn benchmark_accumulator_compare(c: &mut Criterion) {
     let mut group = c.benchmark_group("accumulator_compare");
 
@@ -419,17 +419,17 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
 
     group.finish();
 }
-*/
+
 criterion_group!(
     benches,
-    /*benchmark_blind_mem_proof,
+    benchmark_blind_mem_proof,
     benchmark_unblind_mem_proof,
     benchmark_ver_blind_mem_proof_upd,
     benchmark_blind_mem_proof_upd,
     benchmark_blind_non_mem_proof,
     benchmark_unblind_non_mem_proof,
-    benchmark_ver_blind_non_mem_proof_upd,*/
+    benchmark_ver_blind_non_mem_proof_upd,
     benchmark_blind_non_mem_proof_upd,
-    /*benchmark_accumulator_compare*/
+    benchmark_accumulator_compare
 );
 criterion_main!(benches);
