@@ -265,29 +265,26 @@ impl RsaAccumulator {
             upd_blinded_non_mem_proof
         } else {
             
-            let mut a_int = x % &bnmp_str_int;
-            if a_int < BigInt::ZERO {
-                a_int += &bnmp_str_int;
-            }
-            let a = a_int.to_biguint().unwrap();
 
-            let b_int = (BigInt::from(1) - &a_int * &s) / &bnmp_str_int;
+            let a = x.to_biguint().unwrap();
 
-            let g_int = BigInt::from(self.g.clone());
-            let n_int = BigInt::from(self.n.clone());
-            
-            let ExtendedGcd { gcd: _, x: inv_x, y: _ } = Integer::extended_gcd(&g_int, &n_int);
-            let mut inv_g_int = inv_x % &n_int;
-            if inv_g_int < BigInt::ZERO {
-                inv_g_int += &n_int;
-            }
+            let b_bigint = y.clone();
+        
+            if b_bigint < BigInt::ZERO {
 
-            let inv_g = inv_g_int.to_biguint().unwrap();
+                let inv_g = self.g.modinv(&self.n).unwrap();
 
-            let abs_b = (-b_int).to_biguint().unwrap();
+                let abs_b = (-b_bigint).to_biguint().unwrap();
 
-            let upd_blinded_non_mem_proof = (a, inv_g.modpow(&abs_b, &self.n));
+
+                let upd_blinded_non_mem_proof = (a, inv_g.modpow(&abs_b, &self.n));
+                    upd_blinded_non_mem_proof
+            } else {
+                let b = y.to_biguint().unwrap();
+
+                let upd_blinded_non_mem_proof = (a, self.g.modpow(&b, &self.n));
                 upd_blinded_non_mem_proof
+            }
         }
     }
 

@@ -168,7 +168,8 @@ for bench in BENCHMARKS_UPDATES:
 
 plt.xlabel("Number of elements", fontsize=12)
 plt.ylabel("Time (seconds)", fontsize=12)
-plt.title("Trapdoorless Accumulator Blind Update Proof Scaling")
+plt.title("Trapdoorless RSA Accumulator Blind Update Proof Scaling")
+plt.yscale('log')
 plt.grid(True, linestyle="--", alpha=0.7)
 plt.legend()
 plt.tight_layout()
