@@ -422,6 +422,7 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
 
 criterion_group!(
     benches,
+    
     benchmark_blind_mem_proof,
     benchmark_unblind_mem_proof,
     benchmark_ver_blind_mem_proof_upd,

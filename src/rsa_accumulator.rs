@@ -11,6 +11,7 @@ use num_traits::One;
 use rand::random;
 use rand::thread_rng;
 use std::collections::HashSet;
+use std::iter::Product;
 
 type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
 type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
@@ -105,20 +106,30 @@ impl RsaAccumulator {
         } else {
             self.set.remove(&x_prime);
 
-            let product = RsaAccumulator::calculate_product(&self.set);
+            let product = RsaAccumulator::calculate_product(&self);
             self.acc = self.g.modpow(&product, &self.n);
         }
     }
 
-    fn calculate_product(set: &HashSet<BigUint>) -> BigUint {
-        if set.is_empty() {
+    pub fn calculate_product(&self) -> BigUint {
+        if self.set.is_empty() {
             return BigUint::one();
         }
         let mut product = BigUint::one();
-        for s in set {
+
+        for s in self.set.clone() {
             product *= s;
         }
-        product
+
+        if let Some(t) = self.totient.as_ref() {
+            //println!("TRAPDOORED:");
+            //print!("{:?}", self.reduce_exp(product.clone()));
+            self.reduce_exp(product)
+        } else {
+            //println!("TRAPDOORLESS:");
+            //print!("{:?}", product.clone());
+            product
+        }
     }
 
     pub fn mem_proof_create(&mut self, x: &BigUint) -> BigUint {
@@ -133,8 +144,8 @@ impl RsaAccumulator {
         proof
     }
 
-    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigUint, BigUint) {
-        let p = RsaAccumulator::calculate_product(&self.set);
+    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigInt, BigUint) {
+        let p = RsaAccumulator::calculate_product(&self);
         let s = BigInt::from(p);
 
         let x_str = x.to_string();
@@ -142,18 +153,34 @@ impl RsaAccumulator {
         let x_prime = BigUint::from(prime_u128);
         let x_int = BigInt::from(x_prime.clone());
 
-        let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &x_int);
+        let ExtendedGcd { gcd:_, x, y } = Integer::extended_gcd(&s, &x_int);
         if let Some(t) = self.totient.as_ref() {
             let totient_int = t.to_bigint().unwrap();
-            let a = ((x % &totient_int + &totient_int) % &totient_int)
-                .to_biguint()
-                .unwrap();
-            let b = ((y % &totient_int + &totient_int) % &totient_int)
+            let a = (x % &totient_int + &totient_int) % &totient_int;
+            let b = (y % &totient_int + &totient_int)
                 .to_biguint()
                 .unwrap();
             (a, self.g.modpow(&b, &self.n))
         } else {
-            todo!()
+            let a = x.clone();
+
+            let b_bigint = y.clone();
+        
+            if b_bigint < BigInt::ZERO {
+
+                let inv_g = self.g.modinv(&self.n).unwrap();
+
+                let abs_b = (-b_bigint).to_biguint().unwrap();
+
+
+                let non_mem_proof_create = (a, inv_g.modpow(&abs_b, &self.n));
+                non_mem_proof_create
+            } else {
+                let b = y.to_biguint().unwrap();
+
+                let non_mem_proof_create = (a, self.g.modpow(&b, &self.n));
+                non_mem_proof_create
+            }
         }
     }
 
@@ -161,12 +188,24 @@ impl RsaAccumulator {
         proof.modpow(&x, &self.n) == self.acc
     }
 
-    pub fn non_mem_ver(&self, proof: &(BigUint, BigUint), x: &BigUint) -> bool {
+    pub fn non_mem_ver(&self, proof: &(BigInt, BigUint), x: &BigUint) -> bool {
         let x_str = x.to_string();
         let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
         let x_prime = BigUint::from(prime_u128);
-        (self.acc.modpow(&proof.0, &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n
+        if proof.0 < BigInt::ZERO {
+            //println!("A NEGATIV");
+            let inv_acct = self.acc.modinv(&self.n).unwrap();
+            let abs_a = (-&proof.0).to_biguint().unwrap();
+            (inv_acct.modpow(&abs_a, &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n
             == self.g
+        } else {
+            //println!("A POZITIV");
+            //println!("{:?}", (self.acc.modpow(&proof.0.to_biguint().unwrap(), &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n);
+            //println!("{:?}", self.g);
+            (self.acc.modpow(&proof.0.to_biguint().unwrap(), &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n
+            == self.g
+        }
+        
     }
 
     pub fn blind_mem_proof(&self, mem_proof: &BigUint) -> (BigUint, BigUint) {
@@ -245,28 +284,25 @@ impl RsaAccumulator {
         }
     }
 
-    pub fn blind_non_mem_proof_upd(&self, blinded_non_mem_proof: &BigUint) -> (BigUint, BigUint) {
-        let p = RsaAccumulator::calculate_product(&self.set);
+    pub fn blind_non_mem_proof_upd(&self, blinded_non_mem_proof: &BigUint) -> (BigInt, BigUint) {
+    
+        let p = RsaAccumulator::calculate_product(&self);
         let s = BigInt::from(p);
 
         let bnmp_str_int = BigInt::from(blinded_non_mem_proof.clone());
-
         let ExtendedGcd { gcd: _, x, y } = Integer::extended_gcd(&s, &bnmp_str_int);
-        
+
         if let Some(t) = self.totient.as_ref() {
+
             let totient_int = t.to_bigint().unwrap();
-            let a = ((x % &totient_int + &totient_int) % &totient_int)
-                .to_biguint()
-                .unwrap();
-            let b = ((y % &totient_int + &totient_int) % &totient_int)
+            let a = (x % &totient_int + &totient_int) % &totient_int;
+            let b = (y % &totient_int + &totient_int)
                 .to_biguint()
                 .unwrap();
             let upd_blinded_non_mem_proof = (a, self.g.modpow(&b, &self.n));
             upd_blinded_non_mem_proof
         } else {
-            
-
-            let a = x.to_biguint().unwrap();
+            let a = x.clone();
 
             let b_bigint = y.clone();
         
@@ -292,24 +328,41 @@ impl RsaAccumulator {
         &self,
         acc_t_prime: &BigUint,
         blinded_non_mem_proof: &BigUint,
-        upd_blinded_non_mem_proof: &(BigUint, BigUint),
+        upd_blinded_non_mem_proof: &(BigInt, BigUint),
     ) -> bool {
         let a = &upd_blinded_non_mem_proof.0;
         let b = &upd_blinded_non_mem_proof.1;
         let y = blinded_non_mem_proof;
 
-        if self.g == (acc_t_prime.modpow(&a, &self.n) * b.modpow(&y, &self.n)) % &self.n {
-            return true;
+        //println!("A:");
+        //print!("{:?}", a);
+
+
+        if a < &BigInt::ZERO {
+            //println!("A NEGATIV");
+            let inv_acc_t_prime = acc_t_prime.modinv(&self.n).unwrap();
+            let abs_a = (-a).to_biguint().unwrap();
+            if self.g == (inv_acc_t_prime.modpow(&abs_a, &self.n) * b.modpow(&y, &self.n)) % &self.n {
+                return true;
+            } else {
+                return false;
+            }
         } else {
-            return false;
+            //println!("A POZITIV");
+            if self.g == (acc_t_prime.modpow(&a.to_biguint().unwrap(), &self.n) * b.modpow(&y, &self.n)) % &self.n {
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
     pub fn unblind_non_mem_proof(
         &self,
         st: &BigUint,
-        upd_blinded_non_mem_proof: &(BigUint, BigUint),
-    ) -> (BigUint, BigUint) {
+        upd_blinded_non_mem_proof: &(BigInt, BigUint),
+    ) -> (BigInt, BigUint) {
+        //QUESTION is it a problem to change the return value here to (BigInt, BigUint) from (BigInt, BigUint) in order to handle to negativ 'a' from bezout coefficient from upd_blinded_non_mem_proof? but in this case we dont 'handle' it just return the ublinded updated non mem proof as it is 
         let a = &upd_blinded_non_mem_proof.0;
         let b = &upd_blinded_non_mem_proof.1;
         let q = st;
@@ -418,7 +471,7 @@ mod tests {
         );
 
         let unblinded_proof = acc.unblind_mem_proof(&blinded_proof.0, &blinded_proof.1);
-        println!("{:?}, {:?}", proof, unblinded_proof);
+        //println!("{:?}, {:?}", proof, unblinded_proof);
         assert!(
             unblinded_proof == proof,
             "Proof is not unblinded successfully"

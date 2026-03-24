@@ -17,7 +17,7 @@ fn main() {
     println!("");
     let proof = acc.mem_proof_create(&ep);
 
-    println!("{:?}", acc.mem_ver(&proof, &ep));
+    //println!("{:?}", acc.mem_ver(&proof, &ep));
 
     let nonelement = BigUint::from(383 as usize);
     let nonproof = acc.non_mem_proof_create(&nonelement);
