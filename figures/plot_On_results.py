@@ -245,7 +245,6 @@ plt.yscale("log", base=2)
 
 plt.xlabel("Number of elements", fontsize=12)
 plt.ylabel("Time (seconds)", fontsize=12)
-plt.title("Trapdoored vs Trapdoorless Accumulator Algorithms")
 plt.grid(True, linestyle="--", alpha=0.7)
 plt.legend(bbox_to_anchor=(-0.1, 1), loc='upper right', handlelength=3)
 
@@ -253,5 +252,23 @@ output_file_add = "figures/images/trapdoored_vs_trapdoorless.png"
 plt.tight_layout()
 plt.savefig(output_file_add, dpi=300)
 print(f"\nSuccess! Chart saved to: {output_file_add}")
+
+
+
+output_dir = "data_for_latex"
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+for label, df in series.items():
+    
+    safe_name = label.replace(" ", "_").lower().replace(".", "") + ".csv"
+    file_path = os.path.join(output_dir, safe_name)
+    
+    
+    df[["Elements", "Time (s)"]].to_csv(file_path, index=False)
+    print(f"Exported: {file_path}")
+
+print("\nDONE!")
+
 
 plt.show()
