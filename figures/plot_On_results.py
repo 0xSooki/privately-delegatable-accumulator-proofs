@@ -28,6 +28,16 @@ BENCHMARKS_COMPARE = {
     "bilinear_mem_proof": "Bilinear Membership Proof",
 }
 
+DIR_TRAPDOOR = "target/criterion/trapdoored_vs_trapdoorless_accumulator"
+BENCHMARKS_TRAPDOOR = {
+    "trapdoored_non_mem_blind_proof_upd": "Trapdoored Blind Non-Membership Proof Update",
+    "trapdoorless_non_mem_blind_proof_upd": "Trapdoorless Blind Non-Membership Proof Update",
+    "trapdoored_mem_proof_create": "Trapdoored Membership Proof Create",
+    "trapdoorless_mem_proof_create": "Trapdoorless Membership Proof Create",
+    "trapdoored_non_mem_proof_create": "Trapdoored Non-Membership Proof Create",
+    "trapdoorless_non_mem_proof_create": "Trapdoorless Non-Membership Proof Create",
+}
+
 def load_criterion_data(base_dir, bench_name):
 
     data_rows = []
@@ -78,6 +88,14 @@ for bench in BENCHMARKS_UPDATES:
     if not df.empty:
         df = df.sort_values("Elements")
         series[bench["label"]] = df
+
+
+for bench_name, label in BENCHMARKS_TRAPDOOR.items():
+    df = load_criterion_data(DIR_TRAPDOOR, bench_name)
+    if df.empty:
+        continue
+    df = df.sort_values("Elements")
+    series[label] = df
 
 
 if not series:
@@ -178,5 +196,62 @@ plt.tight_layout()
 output_file_upd = "figures/images/trapdoorless_accumulator_blind_update_proof_scaling.png"
 plt.savefig(output_file_upd, dpi=300)
 print(f"\nSuccess! Chart saved to: {output_file_upd}")
+
+
+
+# Visualization: Trapdoored vs Trapdoorless
+plt.figure(figsize=(12, 7))
+sns.set_theme(style="whitegrid")
+
+
+styles = {
+    "Trapdoorless": "-",
+    "Trapdoored": "--"
+}
+
+colors = {
+    "Membership Proof Create": "#2ecc71",
+    "Non-Membership Proof Create": "#e74c3c",
+    "Blind Non-Membership Proof Update": "#3498db"
+}
+
+for label in ["Trapdoored Blind Non-Membership Proof Update", "Trapdoorless Blind Non-Membership Proof Update", "Trapdoored Membership Proof Create", "Trapdoorless Membership Proof Create", "Trapdoored Non-Membership Proof Create", "Trapdoorless Non-Membership Proof Create"]:
+    df = series[label]
+    
+    line_style = "-"
+    for key, style in styles.items():
+        if key in label:
+            line_style = style
+            
+    line_color = None
+    for key, color in colors.items():
+        if key in label:
+            line_color = color
+
+    plt.plot(
+        df["Elements"],
+        df["Time (s)"],
+        marker="o",
+        linestyle=line_style,
+        color=line_color,
+        linewidth=2.5,
+        markersize=6,
+        label=label,
+        alpha=0.8
+    )
+
+plt.xscale("log", base=2)
+plt.yscale("log", base=2)
+
+plt.xlabel("Number of elements", fontsize=12)
+plt.ylabel("Time (seconds)", fontsize=12)
+plt.title("Trapdoored vs Trapdoorless Accumulator Algorithms")
+plt.grid(True, linestyle="--", alpha=0.7)
+plt.legend(bbox_to_anchor=(-0.1, 1), loc='upper right', handlelength=3)
+
+output_file_add = "figures/images/trapdoored_vs_trapdoorless.png"
+plt.tight_layout()
+plt.savefig(output_file_add, dpi=300)
+print(f"\nSuccess! Chart saved to: {output_file_add}")
 
 plt.show()

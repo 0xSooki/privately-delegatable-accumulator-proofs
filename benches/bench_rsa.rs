@@ -420,9 +420,192 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
     group.finish();
 }
 
+fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
+    let mut group = c.benchmark_group("trapdoored_vs_trapdoorless_accumulator");
+
+    group.sample_size(50);
+
+    let sizes = [10usize, 200, 400, 600];
+
+    for size in sizes.iter() {
+        group.bench_with_input(BenchmarkId::new("trapdoored_non_mem_blind_proof_upd", size), size, |b, &n| {
+            b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup();
+
+                    let non_member = BigUint::from(200003u64);
+
+                    let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    //let elements_out: Vec<BigUint> = vec![];
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+
+                    (acc, blinded_non_mem_proof)
+                },
+                |(acc, blinded_non_mem_proof)| {
+                    acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        group.bench_with_input(BenchmarkId::new("trapdoorless_non_mem_blind_proof_upd", size), size, |b, &n| {
+            b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup_trapdoorless();
+
+                    let non_member = BigUint::from(200003u32);
+
+                    let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    //let elements_out: Vec<BigUint> = vec![];
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+
+                    (acc, blinded_non_mem_proof)
+                },
+                |(acc, blinded_non_mem_proof)| {
+                    acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        group.bench_with_input(BenchmarkId::new("trapdoored_mem_proof_create", size), size, |b, &n| {
+            b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup();
+                    let element = BigUint::from(200003u64);
+                    let ep = acc.add(&element);
+
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+
+                    (acc, ep)
+                },
+                |(mut acc, ep)| {
+                    acc.mem_proof_create(&ep);
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        group.bench_with_input(BenchmarkId::new("trapdoorless_mem_proof_create", size), size, |b, &n| {
+                b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup_trapdoorless();
+                    let element = BigUint::from(200003u64);
+                    let ep = acc.add(&element);
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+                    
+                    (acc, ep)
+                },
+                |(mut acc, ep)| {
+                    acc.mem_proof_create(&ep);
+                },
+                BatchSize::SmallInput,
+            );
+        },);
+
+        group.bench_with_input(BenchmarkId::new("trapdoored_non_mem_proof_create", size), size, |b, &n| {
+                b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup();
+                    let element = BigUint::from(200003u64);
+                    let ep = acc.add(&element);
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+                    
+                    (acc, ep)
+                },
+                |(acc, ep)| {
+                    acc.non_mem_proof_create(&ep);
+                },
+                BatchSize::SmallInput,
+            );
+        },);
+
+        group.bench_with_input(BenchmarkId::new("trapdoorless_non_mem_proof_create", size), size, |b, &n| {
+                b.iter_batched(
+                || {
+                    let mut acc = RsaAccumulator::setup_trapdoorless();
+                    let element = BigUint::from(200003u64);
+                    let ep = acc.add(&element);
+
+                    let mut elements_in = Vec::new();
+
+                    for i in 0..n {
+                        let elem = BigUint::from(i as u64);
+                        elements_in.push(elem);
+                    }
+
+                    for elem in &elements_in {
+                        acc.add(&elem);
+                    }
+                    
+                    (acc, ep)
+                },
+                |(acc, ep)| {
+                    acc.non_mem_proof_create(&ep);
+                },
+                BatchSize::SmallInput,
+            );
+        },);
+
+        
+    }
+
+    group.finish();
+}
+
+
 criterion_group!(
     benches,
-    
     benchmark_blind_mem_proof,
     benchmark_unblind_mem_proof,
     benchmark_ver_blind_mem_proof_upd,
@@ -431,6 +614,7 @@ criterion_group!(
     benchmark_unblind_non_mem_proof,
     benchmark_ver_blind_non_mem_proof_upd,
     benchmark_blind_non_mem_proof_upd,
-    benchmark_accumulator_compare
+    benchmark_accumulator_compare,
+    benchmark_trapdoored_vs_trapdoorless_accumulator
 );
 criterion_main!(benches);
