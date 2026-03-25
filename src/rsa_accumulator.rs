@@ -5,9 +5,10 @@ use crate::rsa_group::RsaGroup;
 use crate::traits::Group;
 use glass_pumpkin::safe_prime;
 use num_bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
+use num_integer::gcd;
 use num_integer::ExtendedGcd;
 use num_integer::Integer;
-use num_traits::One;
+use num_traits::{One, Zero};
 use rand::random;
 use rand::thread_rng;
 use std::collections::HashSet;
@@ -145,19 +146,24 @@ impl RsaAccumulator {
     }
 
     pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigInt, BigUint) {
-        let p = RsaAccumulator::calculate_product(&self);
+        let p = self.calculate_product();
         let s = BigInt::from(p);
 
         let x_str = x.to_string();
         let prime_u128 = self.group.hash_to_prime(x_str.as_bytes());
         let x_prime = BigUint::from(prime_u128);
-        let x_int = BigInt::from(x_prime.clone());
+        let x_prime_int = BigInt::from(x_prime.clone());
 
-        let ExtendedGcd { gcd:_, x, y } = Integer::extended_gcd(&s, &x_int);
+        let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &x_prime_int);
+        assert_eq!(
+            gcd,
+            BigInt::one(),
+            "non-member prime must be coprime with accumulator set product"
+        );
         if let Some(t) = self.totient.as_ref() {
             let totient_int = t.to_bigint().unwrap();
-            let a = (x % &totient_int + &totient_int) % &totient_int;
-            let b = (y % &totient_int + &totient_int)
+            let a = ((x % &totient_int) + &totient_int) % &totient_int;
+            let b = (((y % &totient_int) + &totient_int) % &totient_int)
                 .to_biguint()
                 .unwrap();
             (a, self.g.modpow(&b, &self.n))
@@ -165,13 +171,11 @@ impl RsaAccumulator {
             let a = x.clone();
 
             let b_bigint = y.clone();
-        
-            if b_bigint < BigInt::ZERO {
 
+            if b_bigint < BigInt::ZERO {
                 let inv_g = self.g.modinv(&self.n).unwrap();
 
                 let abs_b = (-b_bigint).to_biguint().unwrap();
-
 
                 let non_mem_proof_create = (a, inv_g.modpow(&abs_b, &self.n));
                 non_mem_proof_create
@@ -197,15 +201,16 @@ impl RsaAccumulator {
             let inv_acct = self.acc.modinv(&self.n).unwrap();
             let abs_a = (-&proof.0).to_biguint().unwrap();
             (inv_acct.modpow(&abs_a, &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n
-            == self.g
+                == self.g
         } else {
             //println!("A POZITIV");
             //println!("{:?}", (self.acc.modpow(&proof.0.to_biguint().unwrap(), &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n);
             //println!("{:?}", self.g);
-            (self.acc.modpow(&proof.0.to_biguint().unwrap(), &self.n) * &proof.1.modpow(&x_prime, &self.n)) % &self.n
-            == self.g
+            (self.acc.modpow(&proof.0.to_biguint().unwrap(), &self.n)
+                * &proof.1.modpow(&x_prime, &self.n))
+                % &self.n
+                == self.g
         }
-        
     }
 
     pub fn blind_mem_proof(&self, mem_proof: &BigUint) -> (BigUint, BigUint) {
@@ -276,7 +281,19 @@ impl RsaAccumulator {
             return (BigUint::from(0u32), BigUint::from(1u32));
         } else {
             let mut rng = thread_rng();
-            let q = rng.gen_biguint(128);
+            let s = self.calculate_product();
+
+            let q = loop {
+                let seed = rng.gen_biguint(128);
+                let q_candidate = self
+                    .group
+                    .hash_to_prime(seed.to_bytes_be().as_slice())
+                    .to_biguint()
+                    .unwrap();
+                if q_candidate.gcd(&s) == BigUint::one() {
+                    break q_candidate;
+                }
+            };
 
             let blinded_non_mem_proof = x_prime * &q;
 
@@ -285,18 +302,21 @@ impl RsaAccumulator {
     }
 
     pub fn blind_non_mem_proof_upd(&self, blinded_non_mem_proof: &BigUint) -> (BigInt, BigUint) {
-    
-        let p = RsaAccumulator::calculate_product(&self);
+        let p = self.calculate_product();
         let s = BigInt::from(p);
 
         let bnmp_str_int = BigInt::from(blinded_non_mem_proof.clone());
-        let ExtendedGcd { gcd: _, x, y } = Integer::extended_gcd(&s, &bnmp_str_int);
+        let ExtendedGcd { gcd, x, y } = Integer::extended_gcd(&s, &bnmp_str_int);
+        assert_eq!(
+            gcd,
+            BigInt::one(),
+            "blinded value must be coprime with accumulator set product"
+        );
 
         if let Some(t) = self.totient.as_ref() {
-
             let totient_int = t.to_bigint().unwrap();
-            let a = (x % &totient_int + &totient_int) % &totient_int;
-            let b = (y % &totient_int + &totient_int)
+            let a = ((x % &totient_int) + &totient_int) % &totient_int;
+            let b = (((y % &totient_int) + &totient_int) % &totient_int)
                 .to_biguint()
                 .unwrap();
             let upd_blinded_non_mem_proof = (a, self.g.modpow(&b, &self.n));
@@ -305,16 +325,14 @@ impl RsaAccumulator {
             let a = x.clone();
 
             let b_bigint = y.clone();
-        
-            if b_bigint < BigInt::ZERO {
 
+            if b_bigint < BigInt::ZERO {
                 let inv_g = self.g.modinv(&self.n).unwrap();
 
                 let abs_b = (-b_bigint).to_biguint().unwrap();
 
-
                 let upd_blinded_non_mem_proof = (a, inv_g.modpow(&abs_b, &self.n));
-                    upd_blinded_non_mem_proof
+                upd_blinded_non_mem_proof
             } else {
                 let b = y.to_biguint().unwrap();
 
@@ -337,23 +355,16 @@ impl RsaAccumulator {
         //println!("A:");
         //print!("{:?}", a);
 
-
         if a < &BigInt::ZERO {
             //println!("A NEGATIV");
             let inv_acc_t_prime = acc_t_prime.modinv(&self.n).unwrap();
             let abs_a = (-a).to_biguint().unwrap();
-            if self.g == (inv_acc_t_prime.modpow(&abs_a, &self.n) * b.modpow(&y, &self.n)) % &self.n {
-                return true;
-            } else {
-                return false;
-            }
+            self.g == (inv_acc_t_prime.modpow(&abs_a, &self.n) * b.modpow(&y, &self.n)) % &self.n
         } else {
             //println!("A POZITIV");
-            if self.g == (acc_t_prime.modpow(&a.to_biguint().unwrap(), &self.n) * b.modpow(&y, &self.n)) % &self.n {
-                return true;
-            } else {
-                return false;
-            }
+            self.g
+                == (acc_t_prime.modpow(&a.to_biguint().unwrap(), &self.n) * b.modpow(&y, &self.n))
+                    % &self.n
         }
     }
 
@@ -362,7 +373,7 @@ impl RsaAccumulator {
         st: &BigUint,
         upd_blinded_non_mem_proof: &(BigInt, BigUint),
     ) -> (BigInt, BigUint) {
-        //QUESTION is it a problem to change the return value here to (BigInt, BigUint) from (BigInt, BigUint) in order to handle to negativ 'a' from bezout coefficient from upd_blinded_non_mem_proof? but in this case we dont 'handle' it just return the ublinded updated non mem proof as it is 
+        //QUESTION is it a problem to change the return value here to (BigInt, BigUint) from (BigInt, BigUint) in order to handle to negativ 'a' from bezout coefficient from upd_blinded_non_mem_proof? but in this case we dont 'handle' it just return the ublinded updated non mem proof as it is
         let a = &upd_blinded_non_mem_proof.0;
         let b = &upd_blinded_non_mem_proof.1;
         let q = st;
@@ -384,7 +395,6 @@ impl RsaAccumulator {
 mod tests {
     use super::*;
     use num_bigint::BigUint;
-    use num_traits::FromPrimitive;
 
     #[test]
     fn test_acc_add_del_no_change() {

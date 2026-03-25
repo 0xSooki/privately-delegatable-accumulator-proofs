@@ -1,7 +1,28 @@
 #!/bin/sh
 
+find_cargo() {
+    if command -v cargo >/dev/null 2>&1; then
+        command -v cargo
+        return 0
+    fi
+
+    if [ -x "$HOME/.cargo/bin/cargo" ]; then
+        echo "$HOME/.cargo/bin/cargo"
+        return 0
+    fi
+
+    return 1
+}
+
+CARGO_BIN="$(find_cargo)"
+if [ -z "$CARGO_BIN" ]; then
+    echo "cargo not found in PATH for pre-commit hook."
+    echo "Install Rust/cargo or expose it in your Git hook environment (e.g. PATH includes ~/.cargo/bin)."
+    exit 1
+fi
+
 echo "Running cargo fmt before commit..."
-cargo fmt -- --check
+"$CARGO_BIN" fmt -- --check
 if [ $? -ne 0 ]; then
     echo "cargo fmt check failed. Run 'cargo fmt' to fix formatting, then re-commit."
     exit 1
