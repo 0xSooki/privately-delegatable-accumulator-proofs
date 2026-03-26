@@ -3,6 +3,7 @@ use ark_ff::{Field, One, UniformRand, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_poly_commit::kzg10::{Powers, KZG10};
 use ark_std::rand::Rng;
+use rand::thread_rng;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -164,25 +165,81 @@ impl<E: Pairing> BilinearAccumulator<E> {
         todo!()
     }
 
-    pub fn unblind_mem_proof(pi_prime: E::G1Affine, r: E::ScalarField) -> E::G1Affine {
+    pub fn unblind_mem_proof(pi_prime: &E::G1Affine, r: &E::ScalarField) -> E::G1Affine {
         let r_inv = r.inverse().expect("r must be nonzero");
         (pi_prime.into_group() * r_inv).into_affine()
     }
 
-    pub fn blind_non_mem_proof() {
-        todo!()
+    pub fn blind_non_mem_proof(
+        &self,
+        proof: &NonMembershipProof<E>,
+        element: E::ScalarField,
+    ) -> (
+        (
+            (<E as Pairing>::G1Affine, <E as Pairing>::G1Affine),
+            <E as Pairing>::ScalarField,
+        ),
+        <E as Pairing>::ScalarField,
+    ) {
+        let mut rng = thread_rng();
+        let r = E::ScalarField::rand(&mut rng);
+
+        let (q_poly, rem) = Self::syn_div(&self.poly, &element);
+        debug_assert_eq!(
+            rem, proof.y,
+            "proof scalar must match reminder from division"
+        );
+        let mut x_q_coeffs = vec![E::ScalarField::zero()];
+        x_q_coeffs.extend(q_poly.coeffs().iter().copied());
+        let x_q = DensePolynomial::from_coefficients_vec(x_q_coeffs);
+        let b_tau = self.kzg_com(&None, &x_q);
+
+        let crs_prime = (
+            (proof.b.into_group() * r).into_affine(),
+            (b_tau.into_group() * r).into_affine(),
+        );
+
+        let blinded_non_mem_proof = (crs_prime, r * proof.y);
+        (blinded_non_mem_proof, r)
     }
 
-    pub fn blind_non_mem_proof_upd() {
-        todo!()
+    pub fn blind_non_mem_proof_upd(
+        &self,
+        blinded_non_mem_proof: &(
+            (<E as Pairing>::G1Affine, <E as Pairing>::G1Affine),
+            <E as Pairing>::ScalarField,
+        ),
+        sn_plus_one: &E::ScalarField,
+    ) -> (<E as Pairing>::G1Affine, <E as Pairing>::ScalarField) {
+        let (crs_prime, y_prime) = blinded_non_mem_proof;
+        let q_prime = (crs_prime.1.into_group()
+            - crs_prime.0.into_group() * sn_plus_one.to_owned())
+        .into_affine();
+
+        let y_prime_t_prime = y_prime.to_owned() * sn_plus_one.to_owned();
+        (q_prime, y_prime_t_prime)
     }
 
     pub fn ver_blind_non_mem_proof_upd() {
         todo!()
     }
 
-    pub fn unblind_non_mem_proof() {
-        todo!()
+    pub fn unblind_non_mem_proof(
+        &self,
+        blinded_non_mem_proof: &(E::G1Affine, E::ScalarField),
+        st: &(E::ScalarField, E::ScalarField),
+        element: E::ScalarField,
+    ) -> NonMembershipProof<E> {
+        let (q_prime, y_prime_t_prime) = &blinded_non_mem_proof;
+        let (r, y_prime_t) = st;
+        let r_inv = r.inverse().expect("r must be nonzero");
+        let g1 = self.crs_g1[0];
+
+        let y_t = y_prime_t.to_owned() * r_inv;
+        let q = (q_prime.into_group() * r_inv + g1.into_group() * y_t).into_affine();
+        let y_t_prime = y_t * element.to_owned() - (y_prime_t_prime.to_owned() * r_inv);
+
+        NonMembershipProof { b: q, y: y_t_prime }
     }
 
     fn kzg_com(
@@ -341,9 +398,43 @@ mod tests {
 
         let pi_prime = acc.blind_mem_proof_upd(added_elements, crs_prime);
 
-        let pi = BilinearAccumulator::<Bls12_381>::unblind_mem_proof(pi_prime, r);
+        let pi = BilinearAccumulator::<Bls12_381>::unblind_mem_proof(&pi_prime, &r);
         let updated_proof = MembershipProof { pi };
 
         assert!(acc.mem_ver(&updated_proof, element));
+    }
+
+    #[test]
+    pub fn test_blind_upd_non_mem_proof_after_additions() {
+        use ark_std::test_rng;
+        let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
+        let initial_elements: Vec<ark_bls12_381::Fr> =
+            (1u64..=3).map(ark_bls12_381::Fr::from).collect();
+        for e in &initial_elements {
+            acc.add(e);
+        }
+
+        let non_member = ark_bls12_381::Fr::from(666u64);
+
+        let proof = acc
+            .non_mem_proof_create(non_member)
+            .expect("Non-membership proof creation failed");
+
+        assert!(acc.non_mem_ver(&proof, non_member), "initial should verify");
+
+        let (blinded_non_mem_proof, r) = acc.blind_non_mem_proof(&proof, non_member);
+
+        let sn_plus_one = ark_bls12_381::Fr::from(67u64);
+        acc.add(&sn_plus_one);
+
+        let pi_prime_t_prime = acc.blind_non_mem_proof_upd(&blinded_non_mem_proof, &sn_plus_one);
+
+        let updated_proof =
+            acc.unblind_non_mem_proof(&pi_prime_t_prime, &(r, blinded_non_mem_proof.1), non_member);
+
+        assert!(
+            acc.non_mem_ver(&updated_proof, non_member),
+            "updated should verify"
+        );
     }
 }
