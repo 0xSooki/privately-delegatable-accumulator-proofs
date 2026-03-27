@@ -43,8 +43,8 @@ impl RsaAccumulator<RsaGroup> {
     }
 
     fn calculate_product(&self) -> BigUint {
-        if let Some(t) = self.group.order() {
-            self.set.iter().fold(BigUint::one(), |acc, v| (acc * v) % t)
+        if let Some(o) = self.group.order() {
+            self.set.iter().fold(BigUint::one(), |acc, v| (acc * v) % o)
         } else {
             self.set.iter().product()
         }
@@ -55,8 +55,8 @@ impl RsaAccumulator<RsaGroup> {
         let x_prime = self.group.hash_to_prime(x_str.as_bytes());
 
         if self.set.remove(&x_prime) {
-            if let Some(t) = self.group.order() {
-                let x_mod_inv = x_prime.modinv(&t).unwrap();
+            if let Some(o) = self.group.order() {
+                let x_mod_inv = x_prime.modinv(&o).unwrap();
                 self.acc = self.group.exp(&self.acc, &x_mod_inv);
             } else {
                 let product = self.calculate_product();
@@ -66,15 +66,18 @@ impl RsaAccumulator<RsaGroup> {
     }
 
     pub fn mem_proof_create(&self, x: &BigUint) -> BigUint {
-        if !self.set.contains(&x) {
+        let x_str = x.to_string();
+        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
+
+        if !self.set.contains(&x_prime) {
             panic!("Element not in accumulator set");
         }
 
-        if let Some(t) = self.group.order() {
-            let x_mod_inv = x.modinv(&t).unwrap();
+        if let Some(o) = self.group.order() {
+            let x_mod_inv = x_prime.modinv(&o).unwrap();
             self.group.exp(&self.acc, &x_mod_inv)
         } else {
-            let product = self.set.iter().filter(|&e| e != x).product();
+            let product = self.set.iter().filter(|&e| e != &x_prime).product();
             self.group.exp(&self.acc, &product)
         }
     }
@@ -93,8 +96,8 @@ impl RsaAccumulator<RsaGroup> {
             "non-member prime must be coprime with accumulator set product"
         );
 
-        if let Some(t) = self.group.order() {
-            let totient_int = t.to_bigint().unwrap();
+        if let Some(o) = self.group.order() {
+            let totient_int = o.to_bigint().unwrap();
             let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
             let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)
                 .to_biguint()

@@ -43,7 +43,9 @@ impl<G: Group> RsaAccumulator<G> {
     }
 
     pub fn mem_ver(&self, proof: &G::Element, x: &G::Exponent) -> bool {
-        self.group.exp(proof, x) == self.acc
+        let x_str = format!("{:?}", x);
+        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
+        self.group.exp(proof, &x_prime) == self.acc
     }
 
     pub fn blind_mem_proof(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
@@ -75,6 +77,7 @@ mod rsa;
 mod tests {
     use super::*;
     use crate::groups::rsa_group::RsaGroup;
+    use ark_poly::domain::radix2::Elements;
     use num_bigint::BigUint;
 
     #[test]
@@ -96,15 +99,18 @@ mod tests {
     fn test_gen_mem_proof() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
         let element = BigUint::from(7usize);
-        let ep = acc.add(&element);
+        acc.add(&element);
 
         for i in 2..5 {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&element);
 
-        assert!(acc.mem_ver(&proof, &ep));
+        assert!(
+            acc.mem_ver(&proof, &element),
+            "Membership proof should verify"
+        );
     }
 
     #[test]
@@ -129,13 +135,13 @@ mod tests {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
         let element = BigUint::from(7usize);
-        let ep: BigUint = acc.add(&element);
+        acc.add(&element);
 
         for i in 2..5 {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&element);
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
@@ -155,11 +161,12 @@ mod tests {
     fn test_blind_mem_proof_upd_ver() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
-        let ep = acc.add(&BigUint::from(200003u32));
+        let element = BigUint::from(10735usize);
+        acc.add(&element);
 
         let acct = acc.acc.clone();
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&element);
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 

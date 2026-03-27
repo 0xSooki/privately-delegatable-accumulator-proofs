@@ -1,6 +1,7 @@
 use super::RsaAccumulator;
 use crate::groups::class_group::{ClassGroup, ClassGroupElement, ClassGroupExponent};
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
+use class_group::pari_init;
 use curv::BigInt;
 use num_integer::{ExtendedGcd, Integer};
 use num_traits::{One, Zero};
@@ -79,6 +80,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     type NonMembershipProof = (BigInt, ClassGroupElement);
 
     fn new(group: Self::Group) -> Self {
+        unsafe { pari_init(100000000000, 2) };
         let acc = group.g();
         Self {
             group,
@@ -88,6 +90,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     }
 
     fn add(&mut self, element: &Self::Element) -> <Self::Group as Group>::Exponent {
+        unsafe { pari_init(100000000000, 2) };
         if !self.set.contains(element) {
             self.set.insert(element.clone());
             self.acc = self.group.exp(&self.acc, element);
@@ -96,6 +99,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     }
 
     fn del(&mut self, element: &Self::Element) {
+        unsafe { pari_init(100000000000, 2) };
         if self.set.remove(element) {
             let mask = self.group.exp(&self.group.g(), element);
             let mask_inv = self.group.inv(&mask);
@@ -111,7 +115,18 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
         &self,
         element: &<Self::Group as Group>::Exponent,
     ) -> Self::MembershipProof {
-        self.mem_proof_create(element)
+        unsafe { pari_init(100000000000, 2) };
+        let x_str = format!("{:?}", element);
+        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
+        if !self.set.contains(&x_prime) {
+            panic!("Element not in accumulator set");
+        }
+        let prod = self
+            .set
+            .iter()
+            .filter(|s| *s != &x_prime)
+            .fold(ClassGroup::exp_id(), |acc, s| ClassGroup::exp_mul(&acc, s));
+        self.group.exp(&self.group.g(), &prod)
     }
 
     fn mem_ver(
@@ -119,14 +134,17 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
         proof: &Self::MembershipProof,
         element: &<Self::Group as Group>::Exponent,
     ) -> bool {
-        self.mem_ver(proof, element)
+        unsafe { pari_init(100000000000, 2) };
+        self.mem_ver(proof, &element)
     }
 
     fn non_mem_proof_create(&self, element: &Self::Element) -> Self::NonMembershipProof {
+        unsafe { pari_init(100000000000, 2) };
         self.non_mem_proof_create(element)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
+        unsafe { pari_init(100000000000, 2) };
         self.non_mem_ver(proof, element)
     }
 }
@@ -143,6 +161,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         &self,
         proof: &Self::MembershipProof,
     ) -> (Self::BlindedMembershipProof, Self::MembershipBlindingFactor) {
+        unsafe { pari_init(100000000000, 2) };
         self.blind_mem_proof(proof)
     }
 
@@ -157,6 +176,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     ) {
+        unsafe { pari_init(100000000000, 2) };
         let delta = elem_in
             .iter()
             .cloned()
@@ -173,6 +193,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         upd_blinded_proof: &Self::UpdatedBlindedMembershipProof,
         aux: &Self::MembershipUpdateAux,
     ) -> bool {
+        unsafe { pari_init(100000000000, 2) };
         let expected_upd = self.group.exp(blinded_proof, aux);
         let expected_acc = self.group.exp(acc_t, aux);
         expected_upd == *upd_blinded_proof && expected_acc == self.acc
@@ -183,10 +204,12 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         blinded_proof: &Self::BlindedMembershipProof,
         st: &Self::MembershipBlindingFactor,
     ) -> Self::MembershipProof {
+        unsafe { pari_init(100000000000, 2) };
         self.unblind_mem_proof(blinded_proof, st)
     }
 
     fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
+        unsafe { pari_init(100000000000, 2) };
         element.clone()
     }
 
@@ -194,6 +217,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
     ) -> Self::UpdatedBlindedNonMembershipProof {
+        unsafe { pari_init(100000000000, 2) };
         self.non_mem_proof_create(blinded_non_mem_proof)
     }
 
@@ -203,6 +227,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
     ) -> bool {
+        unsafe { pari_init(100000000000, 2) };
         let lhs = class_group_signed_exp(&self.group, acc_t_prime, &upd_blinded_non_mem_proof.0);
         let rhs = self
             .group
@@ -215,6 +240,56 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         _st: &<Self::Group as Group>::Exponent,
         upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
     ) -> Self::NonMembershipProof {
+        unsafe { pari_init(100000000000, 2) };
         upd_blinded_non_mem_proof.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::traits::Accumulator;
+    use crate::traits::Group;
+    use crate::traits::PrivatelyDelegatableAccumulator;
+    use crate::RsaAccumulator;
+    fn setup_class_acc() -> RsaAccumulator<ClassGroup> {
+        RsaAccumulator::new(ClassGroup::setup())
+    }
+
+    #[test]
+    fn test_acc_add_del_no_change() {
+        let mut acc = setup_class_acc();
+
+        let initial_acc = acc.value().clone();
+        acc.add(&ClassGroupExponent(BigInt::from(42)));
+        acc.del(&ClassGroupExponent(BigInt::from(42)));
+
+        assert_eq!(acc.value(), &initial_acc);
+    }
+
+    #[test]
+    fn test_mem_proof_verifies() {
+        let mut acc = setup_class_acc();
+
+        let m1 = ClassGroupExponent(BigInt::from(7));
+        acc.add(&m1);
+        acc.add(&ClassGroupExponent(BigInt::from(11)));
+        acc.add(&ClassGroupExponent(BigInt::from(13)));
+
+        let proof = acc.mem_proof_create(&m1);
+        assert!(acc.mem_ver(&proof, &m1));
+    }
+
+    #[test]
+    fn test_mem_proof_not_verifies() {
+        let mut acc = setup_class_acc();
+
+        acc.add(&ClassGroupExponent(BigInt::from(7)));
+        acc.add(&ClassGroupExponent(BigInt::from(11)));
+        acc.add(&ClassGroupExponent(BigInt::from(13)));
+        let non_member = ClassGroupExponent(BigInt::from(17));
+
+        let proof = acc.mem_proof_create(&non_member);
+        assert!(!acc.mem_ver(&proof, &non_member));
     }
 }
