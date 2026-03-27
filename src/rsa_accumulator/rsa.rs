@@ -74,9 +74,8 @@ impl RsaAccumulator<RsaGroup> {
             let x_mod_inv = x.modinv(&t).unwrap();
             self.group.exp(&self.acc, &x_mod_inv)
         } else {
-            let product = self.calculate_product();
-            let proof_exp = product / x;
-            self.group.exp(&self.acc, &proof_exp)
+            let product = self.set.iter().filter(|&e| e != x).product();
+            self.group.exp(&self.acc, &product)
         }
     }
 
