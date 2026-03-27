@@ -71,6 +71,39 @@ def load_criterion_data(base_dir, bench_name):
     return pd.DataFrame(data_rows)
 
 
+
+def load_data_trapdoored_compare(base_dir, bench_name):
+
+    data_rows = []
+
+    bench_dir = os.path.join(base_dir, bench_name)
+
+    if not os.path.exists(bench_dir):
+        print(f"ERROR: Could not find {bench_dir}. Did you run 'cargo bench'?")
+        return pd.DataFrame()
+    
+    for folder_name in os.listdir(bench_dir):
+        folder_path = os.path.join(bench_dir, folder_name)
+
+        if os.path.isdir(folder_path) and folder_name.isdigit():
+            n_elements = int(folder_name)
+
+            est_path = os.path.join(folder_path, "base", "estimates.json")
+
+            if os.path.exists(est_path):
+                with open(est_path, "r") as f:
+                    content = json.load(f)
+
+                    mean_ns = content["mean"]["point_estimate"]
+
+                    mean_ms = mean_ns / 1_000_000.0
+
+                    data_rows.append({
+                        "Elements": n_elements,
+                        "Time (ms)": mean_ms,
+                    })
+    return pd.DataFrame(data_rows)
+
 # Main Execution
 print("Loading samples from Criterion..")
 series = {}
@@ -91,7 +124,7 @@ for bench in BENCHMARKS_UPDATES:
 
 
 for bench_name, label in BENCHMARKS_TRAPDOOR.items():
-    df = load_criterion_data(DIR_TRAPDOOR, bench_name)
+    df = load_data_trapdoored_compare(DIR_TRAPDOOR, bench_name)
     if df.empty:
         continue
     df = df.sort_values("Elements")
@@ -230,7 +263,7 @@ for label in ["Trapdoored Blind Non-Membership Proof Update", "Trapdoorless Blin
 
     plt.plot(
         df["Elements"],
-        df["Time (s)"],
+        df["Time (ms)"],
         marker="o",
         linestyle=line_style,
         color=line_color,
@@ -241,10 +274,10 @@ for label in ["Trapdoored Blind Non-Membership Proof Update", "Trapdoorless Blin
     )
 
 plt.xscale("log", base=2)
-plt.yscale("log", base=2)
+plt.yscale("log", base=10)
 
-plt.xlabel("Number of elements", fontsize=12)
-plt.ylabel("Time (seconds)", fontsize=12)
+plt.xlabel("Number inserted of elements (k)", fontsize=12)
+plt.ylabel("Time (milliseconds)", fontsize=12)
 plt.grid(True, linestyle="--", alpha=0.7)
 plt.legend(bbox_to_anchor=(-0.1, 1), loc='upper right', handlelength=3)
 
@@ -264,9 +297,10 @@ for label, df in series.items():
     safe_name = label.replace(" ", "_").lower().replace(".", "") + ".csv"
     file_path = os.path.join(output_dir, safe_name)
     
+    time_col = "Time (ms)" if "Time (ms)" in df.columns else "Time (s)"
     
-    df[["Elements", "Time (s)"]].to_csv(file_path, index=False)
-    print(f"Exported: {file_path}")
+    df[["Elements", time_col]].to_csv(file_path, index=False)
+    print(f"Exported: {file_path} (using {time_col})")
 
 print("\nDONE!")
 
