@@ -1,48 +1,39 @@
-use crate::rsa_group::RsaGroup;
 use crate::traits::Group;
-use num_bigint::{BigUint, RandBigInt};
+use num_bigint::BigInt;
 use rand::thread_rng;
-use sha256::digest;
+use rand::RngCore;
 
-type Proof = (BigUint, BigUint, BigUint);
-
-#[derive(Debug, Clone)]
-pub struct Transcript {
-    a: BigUint,
-    b: BigUint,
-    z: BigUint,
-}
+type Proof<G> = (
+    <G as Group>::Element,
+    <G as Group>::Element,
+    <G as Group>::Exponent,
+);
 
 #[derive(Debug, Clone)]
-pub struct NIZK<'a> {
-    group: &'a RsaGroup,
+pub struct NIZK<'a, G: Group> {
+    group: &'a G,
 }
 
-impl NIZK<'_> {
-    pub fn setup(group: &RsaGroup) -> NIZK<'_> {
-        NIZK { group: group }
+impl<'a, G: Group> NIZK<'a, G> {
+    pub fn setup(group: &'a G) -> NIZK<'a, G> {
+        NIZK { group }
     }
 
-    pub fn prove_dleq(
+    fn challenge(
         &self,
-        g: &BigUint,
-        u: &BigUint,
-        h: &BigUint,
-        v: &BigUint,
-        w: &BigUint,
-    ) -> Proof {
-        let mut rng = thread_rng();
-        let r = rng.gen_biguint(128);
-        let n = &self.group.n;
-        let a = g.modpow(&r, n);
-        let b = h.modpow(&r, n);
-
-        let g_bytes = g.to_bytes_be();
-        let h_bytes = h.to_bytes_be();
-        let u_bytes = u.to_bytes_be();
-        let v_bytes = v.to_bytes_be();
-        let a_bytes = a.to_bytes_be();
-        let b_bytes = b.to_bytes_be();
+        g: &G::Element,
+        u: &G::Element,
+        h: &G::Element,
+        v: &G::Element,
+        a: &G::Element,
+        b: &G::Element,
+    ) -> G::Exponent {
+        let g_bytes = self.group.element_to_bytes(g);
+        let h_bytes = self.group.element_to_bytes(h);
+        let u_bytes = self.group.element_to_bytes(u);
+        let v_bytes = self.group.element_to_bytes(v);
+        let a_bytes = self.group.element_to_bytes(a);
+        let b_bytes = self.group.element_to_bytes(b);
 
         let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
 
@@ -51,41 +42,50 @@ impl NIZK<'_> {
             bytes_data.extend_from_slice(p);
         }
 
-        let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
-        let z = r + e * w;
+        self.group.hash_to_prime(&bytes_data)
+    }
+
+    pub fn prove_dleq(
+        &self,
+        g: &G::Element,
+        u: &G::Element,
+        h: &G::Element,
+        v: &G::Element,
+        w: &G::Exponent,
+    ) -> Proof<G> {
+        let mut rng = thread_rng();
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+
+        let r = self.group.hash_to_prime(&seed);
+        let a = self.group.exp(g, &r);
+        let b = self.group.exp(h, &r);
+
+        let e = self.challenge(g, u, h, v, &a, &b);
+        let z = G::exp_add(&r, &G::exp_mul(&e, w));
         (a, b, z)
     }
 
     pub fn verify_dleq(
         &self,
-        g: &BigUint,
-        u: &BigUint,
-        h: &BigUint,
-        v: &BigUint,
-        proof: &Proof,
+        g: &G::Element,
+        u: &G::Element,
+        h: &G::Element,
+        v: &G::Element,
+        proof: &Proof<G>,
     ) -> bool {
         let a = &proof.0;
         let b = &proof.1;
         let z = &proof.2;
-        let g_bytes = g.to_bytes_be();
-        let h_bytes = h.to_bytes_be();
-        let u_bytes = u.to_bytes_be();
-        let v_bytes = v.to_bytes_be();
-        let a_bytes = a.to_bytes_be();
-        let b_bytes = b.to_bytes_be();
 
-        let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
-        let mut bytes_data = Vec::with_capacity(parts.iter().map(|p| p.len()).sum());
+        let e = self.challenge(g, u, h, v, a, b);
+        let lhs_1 = self.group.exp(g, z);
+        let lhs_2 = self.group.exp(h, z);
 
-        for p in parts {
-            bytes_data.extend_from_slice(p);
-        }
+        let rhs_1 = self.group.mul(a, &self.group.exp(u, &e));
+        let rhs_2 = self.group.mul(b, &self.group.exp(v, &e));
 
-        let e: <RsaGroup as Group>::Exponent = self.group.hash_to_prime(&bytes_data);
-        let n = &self.group.n;
-        let aue = (a * u.modpow(&e, n)) % n;
-        let bve = (b * v.modpow(&e, n)) % n;
-        g.modpow(&z, n) == aue && h.modpow(&z, n) == bve
+        lhs_1 == rhs_1 && lhs_2 == rhs_2
     }
 
     pub fn prove_poe() {
@@ -100,6 +100,8 @@ impl NIZK<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::groups::rsa_group::RsaGroup;
+    use crate::traits::Group;
     use num_bigint::BigUint;
 
     #[test]
@@ -107,14 +109,52 @@ mod tests {
         let pp = BigUint::from(12345u32);
         let group = RsaGroup::new(pp.clone(), pp.clone(), Some(pp));
 
-        let mut nizk = NIZK::setup(&group);
+        let nizk = NIZK::setup(&group);
         let g = BigUint::from(2u32);
         let h = BigUint::from(3u32);
 
         let w = BigUint::from(42u32);
-        let n = &group.n;
-        let u = g.modpow(&w, n);
-        let v = h.modpow(&w, n);
+        let u = group.exp(&g, &w);
+        let v = group.exp(&h, &w);
+
+        let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
+
+        assert!(nizk.verify_dleq(&g, &u, &h, &v, &proof));
+    }
+
+    #[test]
+    pub fn test_dleq_wrong() {
+        let pp = BigUint::from(12345u32);
+        let group = RsaGroup::new(pp.clone(), pp.clone(), Some(pp));
+        let nizk = NIZK::setup(&group);
+
+        let g = BigUint::from(2u32);
+        let h = BigUint::from(3u32);
+
+        let w = BigUint::from(42u32);
+        let u = group.exp(&g, &w);
+        let v = group.exp(&h, &w);
+
+        let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
+
+        let invalid_proof = (proof.0, proof.1, BigUint::from(0u32));
+
+        assert!(!nizk.verify_dleq(&g, &u, &h, &v, &invalid_proof));
+    }
+
+    #[cfg(feature = "class-group")]
+    #[test]
+    pub fn test_dleq_class_group() {
+        use crate::groups::class_group::{ClassGroup, ClassGroupExponent};
+        let group = ClassGroup::setup();
+        let nizk = NIZK::setup(&group);
+
+        let g = group.g();
+        let h = group.g();
+
+        let w = ClassGroupExponent(curv::BigInt::from(42));
+        let u = group.exp(&g, &w);
+        let v = group.exp(&h, &w);
 
         let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
 

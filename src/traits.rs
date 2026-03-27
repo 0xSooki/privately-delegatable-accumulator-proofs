@@ -33,6 +33,12 @@ pub trait Group: Clone + Debug {
     /// Multiply two exponents
     fn exp_mul(a: &Self::Exponent, b: &Self::Exponent) -> Self::Exponent;
 
+    /// Add two exponents
+    fn exp_add(a: &Self::Exponent, b: &Self::Exponent) -> Self::Exponent;
+
+    /// Serialize a group element to bytes
+    fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8>;
+
     /// Hash arbitrary data to a prime exponent
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent;
 }
@@ -72,4 +78,69 @@ pub trait Accumulator {
 
     /// Verify a non-membership proof
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool;
+}
+
+pub trait PrivatelyDelegatableAccumulator: Accumulator {
+    type BlindedMembershipProof;
+    type MembershipBlindingFactor;
+    type UpdatedBlindedMembershipProof;
+    type MembershipUpdateAux;
+    type BlindedNonMembershipProof;
+    type UpdatedBlindedNonMembershipProof;
+
+    /// Blind a membership proof
+    fn blind_mem_proof(
+        &self,
+        proof: &Self::MembershipProof,
+    ) -> (Self::BlindedMembershipProof, Self::MembershipBlindingFactor);
+
+    /// Update a blinded membership proof
+    fn blind_mem_proof_upd(
+        &self,
+        elem_in: Vec<Self::Element>,
+        elem_out: Vec<Self::Element>,
+        acc_t: &<Self::Group as Group>::Element,
+        blinded_proof: &Self::BlindedMembershipProof,
+    ) -> (
+        Self::UpdatedBlindedMembershipProof,
+        Self::MembershipUpdateAux,
+        <Self::Group as Group>::Element,
+    );
+
+    /// Verify an updated blinded membership proof
+    fn ver_blind_mem_proof_upd(
+        &self,
+        acc_t: &<Self::Group as Group>::Element,
+        blinded_proof: &Self::BlindedMembershipProof,
+        upd_blinded_proof: &Self::UpdatedBlindedMembershipProof,
+        aux: &Self::MembershipUpdateAux,
+    ) -> bool;
+
+    /// Unblind a membership proof
+    fn unblind_mem_proof(
+        &self,
+        blinded_proof: &Self::BlindedMembershipProof,
+        st: &Self::MembershipBlindingFactor,
+    ) -> Self::MembershipProof;
+
+    /// Blind a non-membership proof
+    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof;
+
+    fn blind_non_mem_proof_upd(
+        &self,
+        blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
+    ) -> Self::UpdatedBlindedNonMembershipProof;
+
+    fn ver_blind_non_mem_proof_upd(
+        &self,
+        acc_t_prime: &<Self::Group as Group>::Element,
+        blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
+        upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
+    ) -> bool;
+
+    fn unblind_non_mem_proof(
+        &self,
+        st: &<Self::Group as Group>::Exponent,
+        upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
+    ) -> Self::NonMembershipProof;
 }

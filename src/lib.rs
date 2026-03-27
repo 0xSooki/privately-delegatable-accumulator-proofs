@@ -28,7 +28,7 @@ pub mod math;
 pub mod nizk;
 pub mod traits;
 
-pub use traits::{Accumulator, Group};
+pub use traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 
 #[cfg(feature = "rsa")]
 pub use rsa_accumulator::RsaAccumulator;

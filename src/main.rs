@@ -1,9 +1,10 @@
 use num_bigint::BigUint;
+use privacy_preserving_accumulators::rsa_group::RsaGroup;
 use privacy_preserving_accumulators::RsaAccumulator;
 use rand::thread_rng;
 
 fn main() {
-    let mut acc = RsaAccumulator::setup();
+    let mut acc = RsaAccumulator::<RsaGroup>::setup();
     let element = BigUint::from(7 as usize);
     let ep = acc.add(&element);
 

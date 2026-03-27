@@ -90,6 +90,14 @@ impl Group for RsaGroup {
         a * b
     }
 
+    fn exp_add(a: &Self::Exponent, b: &Self::Exponent) -> Self::Exponent {
+        a + b
+    }
+
+    fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8> {
+        element.to_bytes_be()
+    }
+
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
         let hash_hex = digest(data);
         let mut candidate = BigUint::parse_bytes(hash_hex.as_bytes(), 16).unwrap();
