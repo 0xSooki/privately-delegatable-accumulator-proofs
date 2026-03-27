@@ -135,14 +135,19 @@ impl RsaAccumulator {
 
     pub fn mem_proof_create(&mut self, x: &BigUint) -> BigUint {
         let mut prod = BigUint::one();
-        for s in &self.set {
-            if !s.eq(&x) {
-                prod *= s;
+        if let Some(t) = self.totient.as_ref() {
+            let exponent = x.modinv(t);
+            let proof = self.acc.modpow(&exponent.unwrap(), &self.n);
+            proof
+        } else {
+            for s in &self.set {
+                if !s.eq(&x) {
+                    prod *= s;
+                }
             }
+            let proof = self.g.modpow(&prod, &self.n);
+            proof
         }
-        prod = self.reduce_exp(prod);
-        let proof = self.g.modpow(&prod, &self.n);
-        proof
     }
 
     pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigInt, BigUint) {
@@ -189,6 +194,11 @@ impl RsaAccumulator {
     }
 
     pub fn mem_ver(&self, proof: &BigUint, x: &BigUint) -> bool {
+        let pr = proof.modpow(&x, &self.n);
+        println!("PR:");
+        println!("{:?}", pr);
+        println!("ACC:");
+        println!("{:?}", self.acc);
         proof.modpow(&x, &self.n) == self.acc
     }
 
@@ -394,6 +404,7 @@ impl RsaAccumulator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ark_poly_commit::ipa_pc::Proof;
     use num_bigint::BigUint;
 
     #[test]
@@ -422,6 +433,9 @@ mod tests {
         }
 
         let proof = acc.mem_proof_create(&ep);
+
+        println!("PROOF:");
+        println!("{:?}", proof);
 
         assert!(acc.mem_ver(&proof, &ep));
     }
