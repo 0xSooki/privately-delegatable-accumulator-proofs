@@ -19,10 +19,10 @@ impl RsaAccumulator<RsaGroup> {
         let q = BigUint::from(q_uint);
 
         let n = &p * &q;
-        let totient = (&p - BigUint::one()) * (&q - BigUint::one());
+        let order = (&p - BigUint::one()) * (&q - BigUint::one());
 
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
-        let group = RsaGroup::new(n, g, Some(totient));
+        let group = RsaGroup::new(n, g, Some(order));
 
         Self::new(group)
     }
@@ -43,7 +43,7 @@ impl RsaAccumulator<RsaGroup> {
     }
 
     fn calculate_product(&self) -> BigUint {
-        if let Some(t) = self.group.totient() {
+        if let Some(t) = self.group.order() {
             self.set.iter().fold(BigUint::one(), |acc, v| (acc * v) % t)
         } else {
             self.set.iter().product()
@@ -55,7 +55,7 @@ impl RsaAccumulator<RsaGroup> {
         let x_prime = self.group.hash_to_prime(x_str.as_bytes());
 
         if self.set.remove(&x_prime) {
-            if let Some(t) = self.group.totient() {
+            if let Some(t) = self.group.order() {
                 let x_mod_inv = x_prime.modinv(&t).unwrap();
                 self.acc = self.group.exp(&self.acc, &x_mod_inv);
             } else {
@@ -70,7 +70,7 @@ impl RsaAccumulator<RsaGroup> {
             panic!("Element not in accumulator set");
         }
 
-        if let Some(t) = self.group.totient() {
+        if let Some(t) = self.group.order() {
             let x_mod_inv = x.modinv(&t).unwrap();
             self.group.exp(&self.acc, &x_mod_inv)
         } else {
@@ -93,7 +93,7 @@ impl RsaAccumulator<RsaGroup> {
             "non-member prime must be coprime with accumulator set product"
         );
 
-        if let Some(t) = self.group.totient() {
+        if let Some(t) = self.group.order() {
             let totient_int = t.to_bigint().unwrap();
             let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
             let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)
@@ -201,7 +201,7 @@ impl RsaAccumulator<RsaGroup> {
             "blinded value must be coprime with accumulator set product"
         );
 
-        if let Some(t) = self.group.totient() {
+        if let Some(t) = self.group.order() {
             let totient_int = t.to_bigint().unwrap();
             let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
             let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)

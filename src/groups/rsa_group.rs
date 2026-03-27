@@ -18,12 +18,12 @@ pub enum TrapdoorMode {
 pub struct RsaGroup {
     pub n: BigUint,
     pub g: BigUint,
-    totient: Option<BigUint>,
+    order: Option<BigUint>,
 }
 
 impl RsaGroup {
-    pub fn new(n: BigUint, g: BigUint, totient: Option<BigUint>) -> Self {
-        Self { n, g, totient }
+    pub fn new(n: BigUint, g: BigUint, order: Option<BigUint>) -> Self {
+        Self { n, g, order }
     }
 }
 
@@ -41,7 +41,7 @@ impl Group for RsaGroup {
         let q = BigUint::from(q_uint);
 
         let n = &p * &q;
-        let totient = (&p - BigUint::one()) * (&q - BigUint::one());
+        let order = (&p - BigUint::one()) * (&q - BigUint::one());
 
         // use quadratic residue for generator
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
@@ -49,7 +49,7 @@ impl Group for RsaGroup {
         RsaGroup {
             n,
             g,
-            totient: Some(totient),
+            order: Some(order),
         }
     }
 
@@ -66,16 +66,7 @@ impl Group for RsaGroup {
     }
 
     fn inv(&self, element: &Self::Element) -> Self::Element {
-        let a_int = BigInt::from_biguint(Sign::Plus, element.clone());
-        let n_int = BigInt::from_biguint(Sign::Plus, self.n.clone());
-        let eg = Integer::extended_gcd(&a_int, &n_int);
-        if eg.gcd != BigInt::one() {
-            panic!("element not invertible modulo n");
-        }
-        let mut x = eg.x;
-        x = ((x % &n_int) + &n_int) % &n_int;
-        let res = x.to_biguint().expect("conversion to BigUint failed");
-        res
+        element.modinv(&self.n).unwrap()
     }
 
     fn exp(&self, base: &Self::Element, exponent: &Self::Exponent) -> Self::Element {
@@ -129,23 +120,15 @@ impl RsaGroup {
         let n = &p * &q;
         let g = rng.gen_biguint_range(&BigUint::one(), &n);
 
-        RsaGroup {
-            n,
-            g,
-            totient: None,
-        }
+        RsaGroup { n, g, order: None }
     }
 
     pub fn from_modulus(n: BigUint, g: BigUint) -> Self {
-        RsaGroup {
-            n,
-            g,
-            totient: None,
-        }
+        RsaGroup { n, g, order: None }
     }
 
     pub fn mode(&self) -> TrapdoorMode {
-        if self.totient.is_some() {
+        if self.order.is_some() {
             TrapdoorMode::WithTrapdoor
         } else {
             TrapdoorMode::Trapdoorless
@@ -153,11 +136,11 @@ impl RsaGroup {
     }
 
     pub fn has_trapdoor(&self) -> bool {
-        self.totient.is_some()
+        self.order.is_some()
     }
 
-    pub fn totient(&self) -> Option<&BigUint> {
-        self.totient.as_ref()
+    pub fn order(&self) -> Option<&BigUint> {
+        self.order.as_ref()
     }
 
     pub fn modulus(&self) -> &BigUint {
