@@ -3,4 +3,4 @@ LIBRARY_PATH = "/opt/homebrew/opt/gmp/lib"
 PKG_CONFIG_PATH = "/opt/homebrew/opt/gmp/lib/pkgconfig"
 
 [alias]
-test-class-group = "test --features class-group -- --test-threads=1"
+test-class-group = "test --features class-group class_group -- --test-threads=1"
