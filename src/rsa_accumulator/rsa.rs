@@ -51,12 +51,9 @@ impl RsaAccumulator<RsaGroup> {
     }
 
     pub fn del(&mut self, element: &BigUint) {
-        let x_str = element.to_string();
-        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-
-        if self.set.remove(&x_prime) {
+        if self.set.remove(&element) {
             if let Some(o) = self.group.order() {
-                let x_mod_inv = x_prime.modinv(&o).unwrap();
+                let x_mod_inv = element.modinv(&o).unwrap();
                 self.acc = self.group.exp(&self.acc, &x_mod_inv);
             } else {
                 let product = self.calculate_product();
@@ -65,29 +62,24 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
-    pub fn mem_proof_create(&self, x: &BigUint) -> BigUint {
-        let x_str = x.to_string();
-        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-
-        if !self.set.contains(&x_prime) {
+    pub fn mem_proof_create(&self, element: &BigUint) -> BigUint {
+        if !self.set.contains(&element) {
             panic!("Element not in accumulator set");
         }
 
         if let Some(o) = self.group.order() {
-            let x_mod_inv = x_prime.modinv(&o).unwrap();
+            let x_mod_inv = element.modinv(&o).unwrap();
             self.group.exp(&self.acc, &x_mod_inv)
         } else {
-            let product = self.set.iter().filter(|&e| e != &x_prime).product();
-            self.group.exp(&self.acc, &product)
+            let product = self.set.iter().filter(|&e| e != element).product();
+            self.group.exp(&self.group.g(), &product)
         }
     }
 
-    pub fn non_mem_proof_create(&self, x: &BigUint) -> (BigInt, BigUint) {
+    pub fn non_mem_proof_create(&self, element: &BigUint) -> (BigInt, BigUint) {
         let s = BigInt::from(self.calculate_product_unreduced());
 
-        let x_str = x.to_string();
-        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-        let x_prime_int = BigInt::from(x_prime.clone());
+        let x_prime_int = BigInt::from(element.clone());
 
         let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(&s, &x_prime_int);
         assert_eq!(
@@ -108,12 +100,9 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
-    pub fn non_mem_ver(&self, proof: &(BigInt, BigUint), x: &BigUint) -> bool {
-        let x_str = x.to_string();
-        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-
+    pub fn non_mem_ver(&self, proof: &(BigInt, BigUint), element: &BigUint) -> bool {
         let lhs = self.group.signed_exp(&self.acc, &proof.0);
-        let rhs = self.group.exp(&proof.1, &x_prime);
+        let rhs = self.group.exp(&proof.1, &element);
         self.group.mul(&lhs, &rhs) == self.group.g()
     }
 
@@ -126,9 +115,7 @@ impl RsaAccumulator<RsaGroup> {
     ) -> UpdatedBlindProof {
         let mut delta = BigUint::one();
         for elem in &elem_in {
-            let x_str = elem.to_string();
-            let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-            delta *= &x_prime;
+            delta *= elem;
         }
 
         let acc_t_prime = &self.acc;
@@ -166,11 +153,8 @@ impl RsaAccumulator<RsaGroup> {
         d1 && d2
     }
 
-    pub fn blind_non_mem_proof(&self, x: &BigUint) -> (BigUint, BigUint) {
-        let x_str = x.to_string();
-        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-
-        if self.set.contains(&x_prime) {
+    pub fn blind_non_mem_proof(&self, element: &BigUint) -> (BigUint, BigUint) {
+        if self.set.contains(element) {
             (BigUint::from(0u32), BigUint::from(1u32))
         } else {
             let mut rng = thread_rng();
@@ -188,7 +172,7 @@ impl RsaAccumulator<RsaGroup> {
                 }
             };
 
-            let blinded_non_mem_proof = x_prime * &q;
+            let blinded_non_mem_proof = element * &q;
             (blinded_non_mem_proof, q)
         }
     }
@@ -389,8 +373,8 @@ mod trapdoored_tests {
         let initial_acc = acc.acc.clone();
         let element = BigUint::from_bytes_be(b"test_element");
 
-        acc.add(&element);
-        acc.del(&element);
+        let ep = acc.add(&element);
+        acc.del(&ep);
 
         assert_eq!(
             acc.acc, initial_acc,
@@ -467,8 +451,6 @@ mod trapdoored_tests {
 
         let proof = acc.mem_proof_create(&ep);
 
-        let blinded_proof = acc.blind_mem_proof(&proof);
-
         let elements_in = vec![
             BigUint::from(65537u32),
             BigUint::from(100003u32),
@@ -478,9 +460,9 @@ mod trapdoored_tests {
         ];
 
         let elements_out = vec![];
-        for elem in &elements_in {
-            acc.add(elem);
-        }
+        let elements_in = elements_in.iter().map(|e| acc.add(e)).collect::<Vec<_>>();
+
+        let blinded_proof = acc.blind_mem_proof(&proof);
 
         let upd_blind_proof =
             acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
@@ -561,8 +543,8 @@ mod trapdoorless_tests {
         let initial_acc = acc.acc.clone();
         let element = BigUint::from_bytes_be(b"test_element");
 
-        acc.add(&element);
-        acc.del(&element);
+        let ep = acc.add(&element);
+        acc.del(&ep);
 
         assert_eq!(
             acc.acc, initial_acc,
@@ -574,6 +556,7 @@ mod trapdoorless_tests {
     fn test_gen_mem_proof() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
         let element = BigUint::from(7usize);
+
         let ep = acc.add(&element);
 
         for i in 2..5 {
@@ -641,7 +624,7 @@ mod trapdoorless_tests {
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
-        let elements_in = vec![
+        let elements = vec![
             BigUint::from(65537u32),
             BigUint::from(100003u32),
             BigUint::from(104729u32),
@@ -650,9 +633,8 @@ mod trapdoorless_tests {
         ];
 
         let elements_out = vec![];
-        for elem in &elements_in {
-            acc.add(elem);
-        }
+
+        let elements_in = elements.iter().map(|e| acc.add(e)).collect::<Vec<_>>();
 
         let upd_blind_proof =
             acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);

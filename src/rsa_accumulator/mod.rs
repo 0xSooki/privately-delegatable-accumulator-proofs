@@ -42,10 +42,8 @@ impl<G: Group> RsaAccumulator<G> {
         x_prime
     }
 
-    pub fn mem_ver(&self, proof: &G::Element, x: &G::Exponent) -> bool {
-        let x_str = format!("{:?}", x);
-        let x_prime = self.group.hash_to_prime(x_str.as_bytes());
-        self.group.exp(proof, &x_prime) == self.acc
+    pub fn mem_ver(&self, proof: &G::Element, element: &G::Exponent) -> bool {
+        self.group.exp(proof, element) == self.acc
     }
 
     pub fn blind_mem_proof(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
