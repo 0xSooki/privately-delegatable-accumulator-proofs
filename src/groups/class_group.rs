@@ -1,4 +1,5 @@
 use crate::traits::Group;
+use class_group::pari_init;
 use curv::arithmetic::traits::*;
 use curv::BigInt;
 use sha256::digest;
@@ -16,12 +17,6 @@ static PARI_INIT: Once = Once::new();
 static CLASS_GROUP_128_SETUP: OnceLock<ClassGroup> = OnceLock::new();
 
 const CLASS_GROUP_LAMBDA_128: usize = 600;
-
-fn ensure_pari_init() {
-    PARI_INIT.call_once(|| unsafe {
-        ::class_group::pari_init(100000000, 2);
-    });
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClassGroupElement(pub BinaryQF);
@@ -62,7 +57,6 @@ pub struct ClassGroup {
 
 impl ClassGroup {
     pub fn from_params(discriminant: BigInt, generator_prime: BigInt) -> Self {
-        ensure_pari_init();
         assert!(
             discriminant < BigInt::zero(),
             "discriminant must be negative"
@@ -99,7 +93,8 @@ impl ClassGroup {
     pub fn setup_security() -> Self {
         CLASS_GROUP_128_SETUP
             .get_or_init(|| {
-                ensure_pari_init();
+                unsafe { pari_init(100000000000, 2) };
+
                 let seed_hex = digest(b"sadhflasdkjflasdkfhjlsdfhlsdfkhsldfhsdhlfksdhlfs");
                 let seed = BigInt::from_str_radix(&seed_hex, 16)
                     .expect("seed hash must be parseable as hex bigint");
@@ -117,22 +112,18 @@ impl ClassGroup {
     }
 
     pub fn principal(&self) -> BinaryQF {
-        ensure_pari_init();
         BinaryQF::binary_quadratic_form_principal(&self.discriminant)
     }
 
     pub fn compose(&self, a: &BinaryQF, b: &BinaryQF) -> BinaryQF {
-        ensure_pari_init();
         a.compose(b).reduce()
     }
 
     pub fn inverse(&self, element: &BinaryQF) -> BinaryQF {
-        ensure_pari_init();
         element.inverse().reduce()
     }
 
     pub fn exp_qf(&self, base: &BinaryQF, exponent: &BigInt) -> BinaryQF {
-        ensure_pari_init();
         base.exp(exponent).reduce()
     }
 
