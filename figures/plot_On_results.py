@@ -318,40 +318,59 @@ print(f"\nSuccess! Chart saved to: {output_file_add}")
 
 
 # Visualization: Trapdoored Privacy Overhead
-df_std = series["Trapdoored Standard Non-Membership Proof"]
-df_blind = series["Trapdoored Blinded Non-Membership Proof"]
+if "Trapdoored Standard Non-Membership Proof" in series and "Trapdoored Blinded Non-Membership Proof" in series:
+    df_std = series["Trapdoored Standard Non-Membership Proof"]
+    df_blind = series["Trapdoored Blinded Non-Membership Proof"]
 
-overhead_df = pd.merge(df_std, df_blind, on="Elements", suffixes=('_std', '_blind'))
-overhead_df['Ratio'] = overhead_df['Time (ms)_blind'] / overhead_df['Time (ms)_std']
 
-plt.figure(figsize=(10, 5))
-plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='red', linewidth=2)
+    overhead_df = pd.merge(df_std, df_blind, on="Elements", suffixes=('_std', '_blind'))
+    
+    col_std = "Time (ms)_std" if "Time (ms)_std" in overhead_df.columns else "Time (s)_std"
+    col_blind = "Time (ms)_blind" if "Time (ms)_blind" in overhead_df.columns else "Time (s)_blind"
 
-plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
-plt.title("Privacy Overhead Ratio (Blinded / Standard)")
-plt.ylabel("Ratio")
-plt.xlabel("Number inserted of elements (k)")
-plt.xscale('log', base=2)
-plt.grid(True, linestyle='--')
+    overhead_df['Ratio'] = overhead_df[col_blind] / overhead_df[col_std]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='purple', linewidth=2)
+
+    plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
+    plt.title("Privacy Overhead Ratio (Blinded / Standard)")
+    plt.ylabel("Ratio (Blinded / Standard)")
+    plt.xlabel("Number inserted of elements (k)")
+    plt.xscale('log', base=2)
+    plt.grid(True, linestyle='--')
+    plt.legend()
+
+    plt.tight_layout()
+    overhead_df[["Elements", "Ratio"]].to_csv("data_for_latex/overhead_results_td.csv", index=False)
 
 
 # Visualization: Trapdoorless Privacy Overhead
-df_std_tl = series["Trapdoorless Standard Non-Membership Proof"]
-df_blind_tl = series["Trapdoorless Blinded Non-Membership Proof"]
+if "Trapdoorless Standard Non-Membership Proof" in series and "Trapdoorless Blinded Non-Membership Proof" in series:
+    df_std_tl = series["Trapdoorless Standard Non-Membership Proof"]
+    df_blind_tl = series["Trapdoorless Blinded Non-Membership Proof"]
 
-overhead_df_tl = pd.merge(df_std_tl, df_blind_tl, on="Elements", suffixes=('_std', '_blind'))
-overhead_df_tl['Ratio'] = overhead_df_tl['Time (ms)_blind'] / overhead_df_tl['Time (ms)_std']
 
-plt.figure(figsize=(10, 5))
-plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='purple', linewidth=2)
+    overhead_df_tl = pd.merge(df_std_tl, df_blind_tl, on="Elements", suffixes=('_std', '_blind'))
+    
+    col_std = "Time (ms)_std" if "Time (ms)_std" in overhead_df_tl.columns else "Time (s)_std"
+    col_blind = "Time (ms)_blind" if "Time (ms)_blind" in overhead_df_tl.columns else "Time (s)_blind"
 
-plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
-plt.title("Privacy Overhead Ratio (Blinded / Standard)")
-plt.ylabel("Ratio")
-plt.xlabel("Number inserted of elements (k)")
-plt.xscale('log', base=2)
-plt.grid(True, linestyle='--')
+    overhead_df_tl['Ratio'] = overhead_df_tl[col_blind] / overhead_df_tl[col_std]
 
+    plt.figure(figsize=(10, 5))
+    plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='purple', linewidth=2)
+
+    plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
+    plt.title("Privacy Overhead Ratio (Blinded / Standard)")
+    plt.ylabel("Ratio (Blinded / Standard)")
+    plt.xlabel("Number inserted of elements (k)")
+    plt.xscale('log', base=2)
+    plt.grid(True, linestyle='--')
+    plt.legend()
+
+    plt.tight_layout()
+    overhead_df_tl[["Elements", "Ratio"]].to_csv("data_for_latex/overhead_results_tl.csv", index=False)
 
 
 
