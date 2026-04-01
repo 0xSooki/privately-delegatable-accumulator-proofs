@@ -435,7 +435,6 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut acc = RsaAccumulator::<RsaGroup>::setup();
-
                         let non_member = BigUint::from(200003u64);
 
                         let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
@@ -469,7 +468,6 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut acc = RsaAccumulator::setup_trapdoorless();
-
                         let non_member = BigUint::from(200003u32);
 
                         let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
@@ -565,8 +563,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut acc = RsaAccumulator::<RsaGroup>::setup();
-                        let element = BigUint::from(200003u64);
-                        let ep = acc.add(&element);
+                        let ep = BigUint::from(200003u64);
 
                         let mut elements_in = Vec::new();
 
@@ -596,8 +593,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut acc = RsaAccumulator::setup_trapdoorless();
-                        let element = BigUint::from(200003u64);
-                        let ep = acc.add(&element);
+                        let ep = BigUint::from(200003u64);
 
                         let mut elements_in = Vec::new();
 
