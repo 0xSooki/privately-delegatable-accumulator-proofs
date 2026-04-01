@@ -28,8 +28,8 @@ BENCHMARKS_COMPARE = {
     "bilinear_mem_proof": "Bilinear Membership Proof",
 }
 
-DIR_TRAPDOOR = "target/criterion/trapdoored_vs_trapdoorless_accumulator"
-BENCHMARKS_TRAPDOOR = {
+DIR_TRAPDOOR_COMPARE = "target/criterion/trapdoored_vs_trapdoorless_accumulator"
+BENCHMARKS_TRAPDOOR_COMPARE = {
     "trapdoored_non_mem_blind_proof_upd": "Trapdoored Blind Non-Membership Proof Update",
     "trapdoorless_non_mem_blind_proof_upd": "Trapdoorless Blind Non-Membership Proof Update",
     "trapdoored_mem_proof_create": "Trapdoored Membership Proof Create",
@@ -37,6 +37,20 @@ BENCHMARKS_TRAPDOOR = {
     "trapdoored_non_mem_proof_create": "Trapdoored Non-Membership Proof Create",
     "trapdoorless_non_mem_proof_create": "Trapdoorless Non-Membership Proof Create",
 }
+
+
+DIR_TRAPDOORED_PRIVACY_COMPARE = "target/criterion/trapdoored_privacy_overhead"
+BENCHMARKS_TRAPDOORED_PRIVACY_COMPARE = {
+    "non_mem_proof_standard": "Trapdoored Standard Non-Membership Proof",
+    "non_mem_proof_blinded": "Trapdoored Blinded Non-Membership Proof"
+}
+
+DIR_TRAPDOORLESS_PRIVACY_COMPARE = "target/criterion/trapdoorless_privacy_overhead"
+BENCHMARKS_TRAPDOORLESS_PRIVACY_COMPARE = {
+    "non_mem_proof_standard": "Trapdoorless Standard Non-Membership Proof",
+    "non_mem_proof_blinded": "Trapdoorless Blinded Non-Membership Proof"
+}
+
 
 def load_criterion_data(base_dir, bench_name):
 
@@ -71,8 +85,7 @@ def load_criterion_data(base_dir, bench_name):
     return pd.DataFrame(data_rows)
 
 
-
-def load_data_trapdoored_compare(base_dir, bench_name):
+def load_criterion_data_ms(base_dir, bench_name):
 
     data_rows = []
 
@@ -123,8 +136,24 @@ for bench in BENCHMARKS_UPDATES:
         series[bench["label"]] = df
 
 
-for bench_name, label in BENCHMARKS_TRAPDOOR.items():
-    df = load_data_trapdoored_compare(DIR_TRAPDOOR, bench_name)
+for bench_name, label in BENCHMARKS_TRAPDOOR_COMPARE.items():
+    df = load_criterion_data_ms(DIR_TRAPDOOR_COMPARE, bench_name)
+    if df.empty:
+        continue
+    df = df.sort_values("Elements")
+    series[label] = df
+
+
+for bench_name, label in BENCHMARKS_TRAPDOORED_PRIVACY_COMPARE.items():
+    df = load_criterion_data_ms(DIR_TRAPDOORED_PRIVACY_COMPARE, bench_name)
+    if df.empty:
+        continue
+    df = df.sort_values("Elements")
+    series[label] = df
+
+
+for bench_name, label in BENCHMARKS_TRAPDOORLESS_PRIVACY_COMPARE.items():
+    df = load_criterion_data_ms(DIR_TRAPDOORLESS_PRIVACY_COMPARE, bench_name)
     if df.empty:
         continue
     df = df.sort_values("Elements")
@@ -285,6 +314,44 @@ output_file_add = "figures/images/trapdoored_vs_trapdoorless.png"
 plt.tight_layout()
 plt.savefig(output_file_add, dpi=300)
 print(f"\nSuccess! Chart saved to: {output_file_add}")
+
+
+
+# Visualization: Trapdoored Privacy Overhead
+df_std = series["Trapdoored Standard Non-Membership Proof"]
+df_blind = series["Trapdoored Blinded Non-Membership Proof"]
+
+overhead_df = pd.merge(df_std, df_blind, on="Elements", suffixes=('_std', '_blind'))
+overhead_df['Ratio'] = overhead_df['Time (ms)_blind'] / overhead_df['Time (ms)_std']
+
+plt.figure(figsize=(10, 5))
+plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='red', linewidth=2)
+
+plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
+plt.title("Privacy Overhead Ratio (Blinded / Standard)")
+plt.ylabel("Ratio")
+plt.xlabel("Number inserted of elements (k)")
+plt.xscale('log', base=2)
+plt.grid(True, linestyle='--')
+
+
+# Visualization: Trapdoorless Privacy Overhead
+df_std_tl = series["Trapdoorless Standard Non-Membership Proof"]
+df_blind_tl = series["Trapdoorless Blinded Non-Membership Proof"]
+
+overhead_df_tl = pd.merge(df_std_tl, df_blind_tl, on="Elements", suffixes=('_std', '_blind'))
+overhead_df_tl['Ratio'] = overhead_df_tl['Time (ms)_blind'] / overhead_df_tl['Time (ms)_std']
+
+plt.figure(figsize=(10, 5))
+plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='purple', linewidth=2)
+
+plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
+plt.title("Privacy Overhead Ratio (Blinded / Standard)")
+plt.ylabel("Ratio")
+plt.xlabel("Number inserted of elements (k)")
+plt.xscale('log', base=2)
+plt.grid(True, linestyle='--')
+
 
 
 
