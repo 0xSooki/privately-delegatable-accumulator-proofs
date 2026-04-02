@@ -288,7 +288,6 @@ impl<E: Pairing> BilinearAccumulator<E> {
 mod tests {
     use super::*;
     use ark_bls12_381::Bls12_381;
-    use rand::thread_rng;
 
     #[test]
     fn mem_ver_passes_for_member() {
@@ -370,7 +369,7 @@ mod tests {
             acc.add(e);
         }
         let element = initial_elements[1];
-        let proof = acc
+        let _proof = acc
             .mem_proof_create(element)
             .expect("Membership proof creation failed");
 
@@ -388,7 +387,7 @@ mod tests {
             (4u64..=5).map(ark_bls12_381::Fr::from).collect();
         let num_added = added_elements.len();
 
-        let (mut crs_prime, r) = acc
+        let (crs_prime, r) = acc
             .blind_mem_proof(&mut test_rng(), &q, num_added)
             .expect("Blind membership proof creation failed");
 

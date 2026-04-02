@@ -1,8 +1,7 @@
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_std::{test_rng, time::Duration};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use num_bigint::BigUint;
-use num_traits::ToPrimitive;
+use num_bigint::{BigInt, BigUint};
 use privacy_preserving_accumulators::{
     groups::RsaGroup, BilinearAccumulator, Group, RsaAccumulator,
 };
@@ -10,7 +9,7 @@ use privacy_preserving_accumulators::{
 fn benchmark_blind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
-    group.sample_size(100);
+    group.sample_size(10);
 
     let element = BigUint::from(7 as usize);
 
@@ -42,7 +41,7 @@ fn benchmark_blind_mem_proof(c: &mut Criterion) {
 fn benchmark_unblind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
-    group.sample_size(100);
+    group.sample_size(10);
 
     group.bench_function("unblind_mem_proof", |b| {
         b.iter_batched(
@@ -75,7 +74,7 @@ fn benchmark_unblind_mem_proof(c: &mut Criterion) {
 fn benchmark_ver_blind_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
 
-    group.sample_size(100);
+    group.sample_size(10);
 
     group.measurement_time(Duration::from_secs(10));
 
@@ -180,7 +179,7 @@ fn benchmark_blind_mem_proof_upd(c: &mut Criterion) {
 fn benchmark_blind_non_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
 
-    group.sample_size(100);
+    group.sample_size(10);
 
     group.bench_function("blind_non_mem_proof", |b| {
         b.iter_batched(
@@ -192,11 +191,12 @@ fn benchmark_blind_non_mem_proof(c: &mut Criterion) {
                 }
 
                 let non_member = BigUint::from(7 as usize);
+                let prod = Some(acc.calculate_product_unreduced());
 
-                (acc, non_member)
+                (acc, non_member, prod)
             },
-            |(acc, non_member)| {
-                acc.blind_non_mem_proof(&non_member);
+            |(acc, non_member, prod)| {
+                acc.blind_non_mem_proof(&non_member, &prod);
             },
             BatchSize::SmallInput,
         );
@@ -208,7 +208,7 @@ fn benchmark_blind_non_mem_proof(c: &mut Criterion) {
 fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
 
-    group.sample_size(100);
+    group.sample_size(10);
 
     group.bench_function("unblind_non_mem_proof", |b| {
         b.iter_batched(
@@ -221,7 +221,8 @@ fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
 
                 let non_member = BigUint::from(7 as usize);
 
-                let blinded_proof = acc.blind_non_mem_proof(&non_member);
+                let prod = Some(acc.calculate_product_unreduced());
+                let blinded_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                 for i in 10..12 {
                     acc.add(&BigUint::from(i as usize));
@@ -244,7 +245,7 @@ fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
 fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
     let mut group = c.benchmark_group("non_membership_proofs");
 
-    group.sample_size(100);
+    group.sample_size(10);
 
     group.measurement_time(Duration::from_secs(10));
 
@@ -255,7 +256,8 @@ fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
 
                 let non_member = BigUint::from(200003u32);
 
-                let blinded_proof = acc.blind_non_mem_proof(&non_member);
+                let prod = Some(acc.calculate_product_unreduced());
+                let blinded_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                 let elements_in = vec![
                     BigUint::from(65537u32),
@@ -305,7 +307,8 @@ fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
 
                         let non_member = BigUint::from(200003u32);
 
-                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+                        let prod = Some(acc.calculate_product_unreduced());
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                         let mut elements_in = Vec::new();
 
@@ -336,7 +339,7 @@ fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
 fn benchmark_accumulator_compare(c: &mut Criterion) {
     let mut group = c.benchmark_group("accumulator_compare");
 
-    group.sample_size(50);
+    group.sample_size(10);
 
     let sizes = [10usize, 100, 500];
 
@@ -344,7 +347,7 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("rsa_add_n", size), size, |b, &n| {
             b.iter_batched(
                 || {
-                    let mut acc = RsaAccumulator::<RsaGroup>::setup();
+                    let acc = RsaAccumulator::<RsaGroup>::setup();
                     let elements: Vec<BigUint> = (1u64..=n as u64).map(BigUint::from).collect();
                     (acc, elements)
                 },
@@ -361,7 +364,7 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     let mut rng = test_rng();
-                    let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut rng, n + 1);
+                    let acc = BilinearAccumulator::<Bls12_381>::setup(&mut rng, n + 1);
                     let elements: Vec<Fr> = (1u64..=n as u64).map(Fr::from).collect();
                     (acc, elements)
                 },
@@ -387,7 +390,7 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
                     }
                     (acc, target_prime.expect("target prime"))
                 },
-                |(mut acc, target_prime)| {
+                |(acc, target_prime)| {
                     let proof = acc.mem_proof_create(&target_prime);
                     let _ = acc.mem_ver(&proof, &target_prime);
                 },
@@ -440,7 +443,8 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                         let mut acc = RsaAccumulator::<RsaGroup>::setup();
                         let non_member = BigUint::from(200003u64);
 
-                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+                        let prod = Some(acc.calculate_product_unreduced());
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                         let mut elements_in = Vec::new();
 
@@ -475,7 +479,8 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                         let mut acc = RsaAccumulator::setup_trapdoorless();
                         let non_member = BigUint::from(200003u32);
 
-                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+                        let prod = Some(acc.calculate_product_unreduced());
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                         let mut elements_in = Vec::new();
 
@@ -526,7 +531,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
 
                         (acc, ep)
                     },
-                    |(mut acc, ep)| {
+                    |(acc, ep)| {
                         acc.mem_proof_create(&ep);
                     },
                     BatchSize::SmallInput,
@@ -559,7 +564,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
 
                         (acc, ep)
                     },
-                    |(mut acc, ep)| {
+                    |(acc, ep)| {
                         acc.mem_proof_create(&ep);
                     },
                     BatchSize::SmallInput,
@@ -574,7 +579,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut acc = RsaAccumulator::<RsaGroup>::setup();
-                        let non_element = BigUint::from(200003u64);
+                        let non_member = BigUint::from(200003u64);
 
                         let mut elements_in = Vec::new();
 
@@ -588,12 +593,13 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                         for elem in &elements_in {
                             acc.add(&elem);
                         }
-                        // TODO calculate s* and pass to non_mem_proof_create as a paramater
 
-                        (acc, non_element)
+                        let prod = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, non_member, prod)
                     },
-                    |(acc, non_element)| {
-                        acc.non_mem_proof_create(&non_element);
+                    |(acc, non_member, prod)| {
+                        acc.non_mem_proof_create(&non_member, &prod);
                     },
                     BatchSize::SmallInput,
                 );
@@ -607,7 +613,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut acc = RsaAccumulator::setup_trapdoorless();
-                        let non_element = BigUint::from(200003u64);
+                        let non_member = BigUint::from(200003u64);
 
                         let mut elements_in = Vec::new();
 
@@ -622,10 +628,12 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                             acc.add(&elem);
                         }
 
-                        (acc, non_element)
+                        let prod = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, non_member, prod)
                     },
-                    |(acc, non_element)| {
-                        acc.non_mem_proof_create(&non_element);
+                    |(acc, non_member, prod)| {
+                        acc.non_mem_proof_create(&non_member, &prod);
                     },
                     BatchSize::SmallInput,
                 );
@@ -639,7 +647,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
 fn benchmark_privacy_overhead_trapdoored(c: &mut Criterion) {
     let mut group = c.benchmark_group("trapdoored_privacy_overhead");
 
-    group.sample_size(25);
+    group.sample_size(10);
 
     let sizes = [8usize, 16, 32, 64, 128, 256, 512, 1024];
 
@@ -665,12 +673,13 @@ fn benchmark_privacy_overhead_trapdoored(c: &mut Criterion) {
                         for elem in &elements {
                             acc.add(&elem);
                         }
-                        // TODO calculate s* and pass to non_mem_proof_create as a paramater
 
-                        (acc, non_member)
+                        let prod = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, non_member, prod)
                     },
-                    |(acc, non_member)| {
-                        acc.non_mem_proof_create(&non_member);
+                    |(acc, non_member, prod)| {
+                        acc.non_mem_proof_create(&non_member, &prod);
                     },
                     BatchSize::SmallInput,
                 );
@@ -687,7 +696,8 @@ fn benchmark_privacy_overhead_trapdoored(c: &mut Criterion) {
 
                         let non_member = BigUint::from(200003u64);
 
-                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+                        let prod = Some(acc.calculate_product_unreduced());
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                         let mut elements = Vec::new();
 
@@ -718,7 +728,7 @@ fn benchmark_privacy_overhead_trapdoored(c: &mut Criterion) {
 fn benchmark_privacy_overhead_trapdoorless(c: &mut Criterion) {
     let mut group = c.benchmark_group("trapdoorless_privacy_overhead");
 
-    group.sample_size(25);
+    group.sample_size(10);
 
     let sizes = [8usize, 16, 32, 64, 128, 256, 512, 1024];
 
@@ -744,12 +754,13 @@ fn benchmark_privacy_overhead_trapdoorless(c: &mut Criterion) {
                         for elem in &elements {
                             acc.add(&elem);
                         }
-                        // TODO calculate s* and pass to non_mem_proof_create as a paramater
 
-                        (acc, non_member)
+                        let prod = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, non_member, prod)
                     },
-                    |(acc, non_member)| {
-                        acc.non_mem_proof_create(&non_member);
+                    |(acc, non_member, prod)| {
+                        acc.non_mem_proof_create(&non_member, &prod);
                     },
                     BatchSize::SmallInput,
                 );
@@ -766,7 +777,8 @@ fn benchmark_privacy_overhead_trapdoorless(c: &mut Criterion) {
 
                         let non_member = BigUint::from(200003u64);
 
-                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+                        let prod = Some(acc.calculate_product_unreduced());
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member, &prod);
 
                         let mut elements = Vec::new();
 

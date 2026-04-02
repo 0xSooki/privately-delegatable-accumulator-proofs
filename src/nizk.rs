@@ -1,5 +1,4 @@
 use crate::traits::Group;
-use num_bigint::BigInt;
 use rand::thread_rng;
 use rand::RngCore;
 

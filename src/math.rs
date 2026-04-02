@@ -1,4 +1,4 @@
-use num_bigint::{BigInt, BigUint};
+use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
 pub fn pow(base: &BigUint, exp: &BigUint) -> BigUint {

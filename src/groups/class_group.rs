@@ -5,7 +5,7 @@ use curv::BigInt;
 use sha256::digest;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::sync::{Once, OnceLock};
+use std::sync::OnceLock;
 
 pub use ::class_group::{
     bn_to_gen, pari_qf_comp_to_decimal_string, ABDeltaTriple, BinaryQF, BinaryQFCompressed,
@@ -13,10 +13,10 @@ pub use ::class_group::{
 
 pub use ::class_group::primitives;
 
-static PARI_INIT: Once = Once::new();
 static CLASS_GROUP_128_SETUP: OnceLock<ClassGroup> = OnceLock::new();
 
-const CLASS_GROUP_LAMBDA_128: usize = 600;
+const CLASS_GROUP_LAMBDA_128: usize = 2000;
+const PARI_STACK_SIZE_BYTES: usize = 1_000_000_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClassGroupElement(pub BinaryQF);
@@ -93,7 +93,7 @@ impl ClassGroup {
     pub fn setup_security() -> Self {
         CLASS_GROUP_128_SETUP
             .get_or_init(|| {
-                unsafe { pari_init(100000000000, 2) };
+                unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
 
                 let seed_hex = digest(b"sadhflasdkjflasdkfhjlsdfhlsdfkhsldfhsdhlfksdhlfs");
                 let seed = BigInt::from_str_radix(&seed_hex, 16)

@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use num_bigint::BigUint;
+
 /// Trait for groups
 pub trait Group: Clone + Debug {
     /// The element type in the group
@@ -49,6 +51,7 @@ pub trait Accumulator {
     type Element;
     type MembershipProof;
     type NonMembershipProof;
+    type NonMembershipProduct;
 
     /// Create a new accumulator with the given group
     fn new(group: Self::Group) -> Self;
@@ -74,7 +77,11 @@ pub trait Accumulator {
     ) -> bool;
 
     /// Create a non-membership proof for an element
-    fn non_mem_proof_create(&self, element: &Self::Element) -> Self::NonMembershipProof;
+    fn non_mem_proof_create(
+        &self,
+        element: &Self::Element,
+        prod: &Self::NonMembershipProduct,
+    ) -> Self::NonMembershipProof;
 
     /// Verify a non-membership proof
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool;
@@ -124,7 +131,11 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
     ) -> Self::MembershipProof;
 
     /// Blind a non-membership proof
-    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof;
+    fn blind_non_mem_proof(
+        &self,
+        element: &Self::Element,
+        prod: &Option<BigUint>,
+    ) -> Self::BlindedNonMembershipProof;
 
     fn blind_non_mem_proof_upd(
         &self,

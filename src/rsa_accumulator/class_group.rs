@@ -3,9 +3,12 @@ use crate::groups::class_group::{ClassGroup, ClassGroupElement, ClassGroupExpone
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 use class_group::pari_init;
 use curv::BigInt;
+use num_bigint::BigUint;
 use num_integer::{ExtendedGcd, Integer};
 use num_traits::{One, Zero};
 use std::collections::HashSet;
+
+const PARI_STACK_SIZE_BYTES: usize = 1_000_000_000;
 
 fn class_exp_to_num(exp: &ClassGroupExponent) -> BigInt {
     exp.0.clone()
@@ -47,11 +50,14 @@ impl RsaAccumulator<ClassGroup> {
             .fold(BigInt::one(), |acc, v| acc * v)
     }
 
-    pub fn non_mem_proof_create(&self, x: &ClassGroupExponent) -> (BigInt, ClassGroupElement) {
-        let s = self.calculate_product_unreduced();
+    pub fn non_mem_proof_create(
+        &self,
+        x: &ClassGroupExponent,
+        prod: &BigInt,
+    ) -> (BigInt, ClassGroupElement) {
         let x_num = class_exp_to_num(x);
 
-        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(&s, &x_num);
+        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(prod, &x_num);
         assert_eq!(
             gcd,
             BigInt::one(),
@@ -74,9 +80,10 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     type Element = ClassGroupExponent;
     type MembershipProof = ClassGroupElement;
     type NonMembershipProof = (BigInt, ClassGroupElement);
+    type NonMembershipProduct = BigInt;
 
     fn new(group: Self::Group) -> Self {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         let acc = group.g();
         Self {
             group,
@@ -86,7 +93,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     }
 
     fn add(&mut self, element: &Self::Element) -> <Self::Group as Group>::Exponent {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         let x_str = format!("{:?}", element);
         let x_prime = self.group.hash_to_prime(x_str.as_bytes());
         if !self.set.contains(&x_prime) {
@@ -97,7 +104,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     }
 
     fn del(&mut self, element: &Self::Element) {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         if self.set.remove(element) {
             self.acc = self
                 .set
@@ -114,7 +121,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
         &self,
         element: &<Self::Group as Group>::Exponent,
     ) -> Self::MembershipProof {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         if !self.set.contains(&element) {
             panic!("Element not in accumulator set");
         }
@@ -131,17 +138,21 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
         proof: &Self::MembershipProof,
         element: &<Self::Group as Group>::Exponent,
     ) -> bool {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         self.group.exp(proof, element) == self.acc
     }
 
-    fn non_mem_proof_create(&self, element: &Self::Element) -> Self::NonMembershipProof {
-        unsafe { pari_init(100000000000, 2) };
-        self.non_mem_proof_create(element)
+    fn non_mem_proof_create(
+        &self,
+        element: &Self::Element,
+        prod: &Self::NonMembershipProduct,
+    ) -> Self::NonMembershipProof {
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
+        self.non_mem_proof_create(element, prod)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         self.non_mem_ver(proof, element)
     }
 }
@@ -158,7 +169,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         &self,
         proof: &Self::MembershipProof,
     ) -> (Self::BlindedMembershipProof, Self::MembershipBlindingFactor) {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         self.blind_mem_proof(proof)
     }
 
@@ -173,7 +184,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     ) {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         let delta = elem_in
             .iter()
             .cloned()
@@ -190,7 +201,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         upd_blinded_proof: &Self::UpdatedBlindedMembershipProof,
         aux: &Self::MembershipUpdateAux,
     ) -> bool {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         let expected_upd = self.group.exp(blinded_proof, aux);
         let expected_acc = self.group.exp(acc_t, aux);
         expected_upd == *upd_blinded_proof && expected_acc == self.acc
@@ -201,12 +212,16 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         blinded_proof: &Self::BlindedMembershipProof,
         st: &Self::MembershipBlindingFactor,
     ) -> Self::MembershipProof {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         self.unblind_mem_proof(blinded_proof, st)
     }
 
-    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
-        unsafe { pari_init(100000000000, 2) };
+    fn blind_non_mem_proof(
+        &self,
+        element: &Self::Element,
+        _prod: &Option<BigUint>,
+    ) -> Self::BlindedNonMembershipProof {
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         element.clone()
     }
 
@@ -214,8 +229,8 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
     ) -> Self::UpdatedBlindedNonMembershipProof {
-        unsafe { pari_init(100000000000, 2) };
-        self.non_mem_proof_create(blinded_non_mem_proof)
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
+        self.non_mem_proof_create(blinded_non_mem_proof, &self.calculate_product_unreduced())
     }
 
     fn ver_blind_non_mem_proof_upd(
@@ -224,7 +239,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
     ) -> bool {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         let lhs = class_group_signed_exp(&self.group, acc_t_prime, &upd_blinded_non_mem_proof.0);
         let rhs = self
             .group
@@ -237,7 +252,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         _st: &<Self::Group as Group>::Exponent,
         upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
     ) -> Self::NonMembershipProof {
-        unsafe { pari_init(100000000000, 2) };
+        unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         upd_blinded_non_mem_proof.clone()
     }
 }
@@ -291,7 +306,8 @@ mod tests {
 
         let non_member = hash_input(&acc, 5u32);
 
-        let proof = acc.non_mem_proof_create(&non_member);
+        let prod = acc.calculate_product_unreduced();
+        let proof = acc.non_mem_proof_create(&non_member, &prod);
         assert!(
             acc.non_mem_ver(&proof, &non_member),
             "Non-membership proof should verify"
@@ -363,7 +379,7 @@ mod tests {
 
         let non_member = hash_input(&acc, 7u32);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof(&non_member, &None);
 
         for i in 10..12 {
             acc.add(&i);
@@ -384,7 +400,7 @@ mod tests {
 
         let non_member = hash_input(&acc, 200003u32);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof(&non_member, &None);
 
         let elements_in = vec![65537u32, 100003u32, 104729u32, 1299709u32, 15485863u32];
 
