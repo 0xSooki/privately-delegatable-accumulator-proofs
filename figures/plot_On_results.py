@@ -317,6 +317,8 @@ print(f"\nSuccess! Chart saved to: {output_file_add}")
 
 
 
+plt.figure(figsize=(10, 6))
+
 # Visualization: Trapdoored Privacy Overhead
 if "Trapdoored Standard Non-Membership Proof" in series and "Trapdoored Blinded Non-Membership Proof" in series:
     df_std = series["Trapdoored Standard Non-Membership Proof"]
@@ -330,18 +332,8 @@ if "Trapdoored Standard Non-Membership Proof" in series and "Trapdoored Blinded 
 
     overhead_df['Ratio'] = overhead_df[col_blind] / overhead_df[col_std]
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='purple', linewidth=2)
+    plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='red', linestyle='--', linewidth=2.5, label="Trapdoored Overhead")
 
-    plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
-    plt.title("Privacy Overhead Ratio (Blinded / Standard)")
-    plt.ylabel("Ratio (Blinded / Standard)")
-    plt.xlabel("Number inserted of elements (k)")
-    plt.xscale('log', base=2)
-    plt.grid(True, linestyle='--')
-    plt.legend()
-
-    plt.tight_layout()
     overhead_df[["Elements", "Ratio"]].to_csv("data_for_latex/overhead_results_td.csv", index=False)
 
 
@@ -358,20 +350,20 @@ if "Trapdoorless Standard Non-Membership Proof" in series and "Trapdoorless Blin
 
     overhead_df_tl['Ratio'] = overhead_df_tl[col_blind] / overhead_df_tl[col_std]
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(overhead_df['Elements'], overhead_df['Ratio'], marker='s', color='purple', linewidth=2)
+    plt.plot(overhead_df_tl['Elements'], overhead_df_tl['Ratio'], marker='s', color='green', linewidth=2, label="Trapdoorless Overhead")
 
-    plt.axhline(y=1, color='red', linestyle='--', alpha=0.5)
-    plt.title("Privacy Overhead Ratio (Blinded / Standard)")
-    plt.ylabel("Ratio (Blinded / Standard)")
-    plt.xlabel("Number inserted of elements (k)")
-    plt.xscale('log', base=2)
-    plt.grid(True, linestyle='--')
-    plt.legend()
-
-    plt.tight_layout()
     overhead_df_tl[["Elements", "Ratio"]].to_csv("data_for_latex/overhead_results_tl.csv", index=False)
 
+
+plt.axhline(y=1, color='black', linestyle='--', alpha=0.3, label="Ideal (No overhead)")
+plt.title("Privacy Overhead Comparison", fontsize=14)
+plt.ylabel("Ratio ($T_{blinded} / T_{std}$)", fontsize=12)
+plt.xlabel("Number of elements ($N$)", fontsize=12)
+plt.xscale('log', base=2)
+
+plt.legend(loc='best')
+plt.grid(True, which="both", linestyle='--', alpha=0.5)
+plt.tight_layout()
 
 
 output_dir = "data_for_latex"
