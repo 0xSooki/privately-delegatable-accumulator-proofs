@@ -38,6 +38,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas seaborn matplotlib
 
+      - name: Remove previous trapdoored/trapdoorless CSV outputs
+        run: |
+          rm -f data_for_latex/trapdoored_*.csv
+          rm -f data_for_latex/trapdoorless_*.csv
+
       - name: Run trapdoored vs trapdoorless benchmark group
         run: cargo bench --bench bench_rsa -- benchmark_trapdoored_vs_trapdoorless_accumulator
 
