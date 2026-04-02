@@ -228,7 +228,10 @@ fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
                     acc.add(&BigUint::from(i as usize));
                 }
 
-                let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
+                let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(
+                    &blinded_proof.0,
+                    &BigInt::from(acc.calculate_product()),
+                );
 
                 (acc, blinded_proof, upd_blind_non_mem_proof)
             },
@@ -273,7 +276,10 @@ fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
 
                 let acct_prime = acc.acc.clone();
 
-                let updated_blind_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
+                let updated_blind_proof = acc.blind_non_mem_proof_upd(
+                    &blinded_proof.0,
+                    &BigInt::from(acc.calculate_product()),
+                );
 
                 (acc, acct_prime, blinded_proof, updated_blind_proof)
             },
@@ -322,10 +328,12 @@ fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
                             acc.add(&elem);
                         }
 
-                        (acc, blinded_non_mem_proof)
+                        let delta = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, blinded_non_mem_proof, delta)
                     },
-                    |(acc, blinded_non_mem_proof)| {
-                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                    |(acc, blinded_non_mem_proof, delta)| {
+                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
                     },
                     BatchSize::SmallInput,
                 );
@@ -429,7 +437,7 @@ fn benchmark_accumulator_compare(c: &mut Criterion) {
 fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
     let mut group = c.benchmark_group("trapdoored_vs_trapdoorless_accumulator");
 
-    group.sample_size(25);
+    group.sample_size(10);
 
     let sizes = [8usize, 16, 32, 64, 128, 256, 512, 1024];
 
@@ -460,10 +468,12 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                             acc.add(&elem);
                         }
 
-                        (acc, blinded_non_mem_proof)
+                        let delta = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, blinded_non_mem_proof, delta)
                     },
-                    |(acc, blinded_non_mem_proof)| {
-                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                    |(acc, blinded_non_mem_proof, delta)| {
+                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
                     },
                     BatchSize::SmallInput,
                 );
@@ -496,10 +506,12 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
                             acc.add(&elem);
                         }
 
-                        (acc, blinded_non_mem_proof)
+                        let delta = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, blinded_non_mem_proof, delta)
                     },
-                    |(acc, blinded_non_mem_proof)| {
-                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                    |(acc, blinded_non_mem_proof, delta)| {
+                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
                     },
                     BatchSize::SmallInput,
                 );
@@ -713,10 +725,12 @@ fn benchmark_privacy_overhead_trapdoored(c: &mut Criterion) {
                             acc.add(&elem);
                         }
 
-                        (acc, blinded_non_mem_proof)
+                        let delta = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, blinded_non_mem_proof, delta)
                     },
-                    |(acc, blinded_non_mem_proof)| {
-                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                    |(acc, blinded_non_mem_proof, delta)| {
+                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
                     },
                     BatchSize::SmallInput,
                 );
@@ -794,10 +808,12 @@ fn benchmark_privacy_overhead_trapdoorless(c: &mut Criterion) {
                             acc.add(&elem);
                         }
 
-                        (acc, blinded_non_mem_proof)
+                        let delta = BigInt::from(acc.calculate_product_unreduced());
+
+                        (acc, blinded_non_mem_proof, delta)
                     },
-                    |(acc, blinded_non_mem_proof)| {
-                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0);
+                    |(acc, blinded_non_mem_proof, delta)| {
+                        acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
                     },
                     BatchSize::SmallInput,
                 );

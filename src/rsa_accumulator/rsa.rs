@@ -179,11 +179,13 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
-    pub fn blind_non_mem_proof_upd(&self, blinded_non_mem_proof: &BigUint) -> (BigInt, BigUint) {
-        let s = BigInt::from(self.calculate_product_unreduced());
-
+    pub fn blind_non_mem_proof_upd(
+        &self,
+        blinded_non_mem_proof: &BigUint,
+        prod: &BigInt,
+    ) -> (BigInt, BigUint) {
         let blinded_int = BigInt::from(blinded_non_mem_proof.clone());
-        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(&s, &blinded_int);
+        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(prod, &blinded_int);
         assert_eq!(
             gcd,
             BigInt::one(),
@@ -295,6 +297,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
     type MembershipUpdateAux = Aux;
     type BlindedNonMembershipProof = (BigUint, BigUint);
     type UpdatedBlindedNonMembershipProof = (BigInt, BigUint);
+    type Delta = BigInt;
 
     fn blind_mem_proof(
         &self,
@@ -346,8 +349,9 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
     fn blind_non_mem_proof_upd(
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
+        delta: &Self::Delta,
     ) -> Self::UpdatedBlindedNonMembershipProof {
-        self.blind_non_mem_proof_upd(&blinded_non_mem_proof.0)
+        self.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, delta)
     }
 
     fn ver_blind_non_mem_proof_upd(
@@ -506,7 +510,10 @@ mod trapdoored_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
+        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(
+            &blinded_proof.0,
+            &BigInt::from(acc.calculate_product_unreduced()),
+        );
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
@@ -538,7 +545,10 @@ mod trapdoored_tests {
 
         let acctprime = acc.acc.clone();
 
-        let upd_blind_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
+        let upd_blind_proof = acc.blind_non_mem_proof_upd(
+            &blinded_proof.0,
+            &BigInt::from(acc.calculate_product_unreduced()),
+        );
 
         assert!(
             acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof),
@@ -683,7 +693,10 @@ mod trapdoorless_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
+        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(
+            &blinded_proof.0,
+            &BigInt::from(acc.calculate_product_unreduced()),
+        );
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
@@ -715,7 +728,10 @@ mod trapdoorless_tests {
 
         let acctprime = acc.acc.clone();
 
-        let upd_blind_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0);
+        let upd_blind_proof = acc.blind_non_mem_proof_upd(
+            &blinded_proof.0,
+            &BigInt::from(acc.calculate_product_unreduced()),
+        );
 
         assert!(
             acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof),

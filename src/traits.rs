@@ -94,6 +94,7 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
     type MembershipUpdateAux;
     type BlindedNonMembershipProof;
     type UpdatedBlindedNonMembershipProof;
+    type Delta;
 
     /// Blind a membership proof
     fn blind_mem_proof(
@@ -140,6 +141,7 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
     fn blind_non_mem_proof_upd(
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
+        delta: &Self::Delta,
     ) -> Self::UpdatedBlindedNonMembershipProof;
 
     fn ver_blind_non_mem_proof_upd(
