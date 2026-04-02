@@ -44,7 +44,7 @@ jobs:
           rm -f data_for_latex/trapdoorless_*.csv
 
       - name: Run trapdoored vs trapdoorless benchmark group
-        run: cargo bench --bench bench_rsa -- benchmark_trapdoored_vs_trapdoorless_accumulator
+        run: cargo bench --bench bench_rsa trapdoored_vs_trapdoorless_accumulator
 
       - name: Generate O(n) plot
         run: python figures/plot_On_results.py
