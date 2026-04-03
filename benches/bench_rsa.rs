@@ -193,12 +193,11 @@ fn benchmark_blind_non_mem_proof(c: &mut Criterion) {
                 }
 
                 let non_member = BigUint::from(7 as usize);
-                let prod = Some(acc.calculate_product_unreduced());
 
-                (acc, non_member, prod)
+                (acc, non_member)
             },
-            |(acc, non_member, prod)| {
-                acc.blind_non_mem_proof(&non_member, &prod);
+            |(acc, non_member)| {
+                acc.blind_non_mem_proof(&non_member);
             },
             BatchSize::SmallInput,
         );
@@ -224,7 +223,7 @@ fn benchmark_unblind_non_mem_proof(c: &mut Criterion) {
                 let non_member = BigUint::from(7 as usize);
 
                 let prod = Some(acc.calculate_product_unreduced());
-                let blinded_proof = acc.blind_non_mem_proof(&non_member, &prod);
+                let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
                 for i in 10..12 {
                     acc.add(&BigUint::from(i as usize));
@@ -261,8 +260,7 @@ fn benchmark_ver_blind_non_mem_proof_upd(c: &mut Criterion) {
 
                 let non_member = BigUint::from(200003u32);
 
-                let prod = Some(acc.calculate_product_unreduced());
-                let blinded_proof = acc.blind_non_mem_proof(&non_member, &prod);
+                let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
                 let elements_in = vec![
                     BigUint::from(65537u32),
@@ -315,8 +313,7 @@ fn benchmark_blind_non_mem_proof_upd(c: &mut Criterion) {
 
                         let non_member = BigUint::from(200003u32);
 
-                        let prod = Some(acc.calculate_product_unreduced());
-                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member, &prod);
+                        let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
 
                         let mut elements_in = Vec::new();
 
@@ -469,9 +466,7 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
             base_acc_td.add(&all_primes_td[i]);
         }
 
-        let prod_td = Some(base_acc_td.calculate_product());
-        let trapdoored_blinded_non_mem_proof =
-            base_acc_td.blind_non_mem_proof(&non_element, &prod_td);
+        let trapdoored_blinded_non_mem_proof = base_acc_td.blind_non_mem_proof(&non_element);
 
         // TRAPDOORLESS
         let mut base_acc_tl = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
@@ -480,9 +475,11 @@ fn benchmark_trapdoored_vs_trapdoorless_accumulator(c: &mut Criterion) {
             base_acc_tl.add(&all_primes_tl[i]);
         }
 
+        let trapdoorless_blinded_non_mem_proof = base_acc_tl.blind_non_mem_proof(&non_element);
+
+        let prod_td = Some(base_acc_td.calculate_product());
+
         let prod_tl = Some(base_acc_tl.calculate_product());
-        let trapdoorless_blinded_non_mem_proof =
-            base_acc_tl.blind_non_mem_proof(&non_element, &prod_tl);
 
         group.bench_with_input(
             BenchmarkId::new("trapdoored_non_mem_blind_proof_upd", size),
@@ -618,8 +615,7 @@ fn benchmark_privacy_overhead_trapdoored(c: &mut Criterion) {
             base_acc.add(&all_primes[i]);
         }
 
-        let prod = Some(base_acc.calculate_product());
-        let trapdoored_blinded_non_mem_proof = base_acc.blind_non_mem_proof(&non_element, &prod);
+        let trapdoored_blinded_non_mem_proof = base_acc.blind_non_mem_proof(&non_element);
 
         let delta = Some(base_acc.calculate_product());
 
@@ -687,8 +683,7 @@ fn benchmark_privacy_overhead_trapdoorless(c: &mut Criterion) {
             base_acc.add(&all_primes[i]);
         }
 
-        let prod = Some(base_acc.calculate_product());
-        let trapdoorless_blinded_non_mem_proof = base_acc.blind_non_mem_proof(&non_element, &prod);
+        let trapdoorless_blinded_non_mem_proof = base_acc.blind_non_mem_proof(&non_element);
 
         let delta = Some(base_acc.calculate_product());
 
