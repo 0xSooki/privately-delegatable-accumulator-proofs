@@ -151,28 +151,18 @@ impl RsaAccumulator<RsaGroup> {
         d1 && d2
     }
 
-    pub fn blind_non_mem_proof(
-        &self,
-        element: &BigUint,
-        prod: &Option<BigUint>,
-    ) -> (BigUint, BigUint) {
+    pub fn blind_non_mem_proof(&self, element: &BigUint) -> (BigUint, BigUint) {
         if self.set.contains(element) {
             (BigUint::from(0u32), BigUint::from(1u32))
         } else {
             let mut rng = thread_rng();
-            let s = prod.as_ref().unwrap();
 
-            let q = loop {
-                let seed = rng.gen_biguint(128);
-                let q_candidate = self
-                    .group
-                    .hash_to_prime(seed.to_bytes_be().as_slice())
-                    .to_biguint()
-                    .unwrap();
-                if q_candidate.gcd(&s) == BigUint::one() {
-                    break q_candidate;
-                }
-            };
+            let seed = rng.gen_biguint(128);
+            let q = self
+                .group
+                .hash_to_prime(seed.to_bytes_be().as_slice())
+                .to_biguint()
+                .unwrap();
 
             let blinded_non_mem_proof = element * &q;
             (blinded_non_mem_proof, q)
@@ -182,10 +172,10 @@ impl RsaAccumulator<RsaGroup> {
     pub fn blind_non_mem_proof_upd(
         &self,
         blinded_non_mem_proof: &BigUint,
-        prod: &BigInt,
+        delta: &BigInt,
     ) -> (BigInt, BigUint) {
         let blinded_int = BigInt::from(blinded_non_mem_proof.clone());
-        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(prod, &blinded_int);
+        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(delta, &blinded_int);
         assert_eq!(
             gcd,
             BigInt::one(),
@@ -338,12 +328,8 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         self.unblind_mem_proof(blinded_proof, st)
     }
 
-    fn blind_non_mem_proof(
-        &self,
-        element: &Self::Element,
-        prod: &Option<BigUint>,
-    ) -> Self::BlindedNonMembershipProof {
-        self.blind_non_mem_proof(element, prod)
+    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
+        self.blind_non_mem_proof(element)
     }
 
     fn blind_non_mem_proof_upd(
@@ -503,8 +489,7 @@ mod trapdoored_tests {
 
         let non_member = BigUint::from(7usize);
 
-        let blinded_proof =
-            acc.blind_non_mem_proof(&non_member, &Some(acc.calculate_product_unreduced()));
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         for i in 10..12 {
             acc.add(&BigUint::from(i as usize));
@@ -528,8 +513,7 @@ mod trapdoored_tests {
 
         let non_member = BigUint::from(200003u32);
 
-        let blinded_proof =
-            acc.blind_non_mem_proof(&non_member, &Some(acc.calculate_product_unreduced()));
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         let elements_in = vec![
             BigUint::from(65537u32),
@@ -686,8 +670,7 @@ mod trapdoorless_tests {
 
         let non_member = BigUint::from(7usize);
 
-        let blinded_proof =
-            acc.blind_non_mem_proof(&non_member, &Some(acc.calculate_product_unreduced()));
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         for i in 10..12 {
             acc.add(&BigUint::from(i as usize));
@@ -711,8 +694,7 @@ mod trapdoorless_tests {
 
         let non_member = BigUint::from(200003u32);
 
-        let blinded_proof =
-            acc.blind_non_mem_proof(&non_member, &Some(acc.calculate_product_unreduced()));
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         let elements_in = vec![
             BigUint::from(65537u32),

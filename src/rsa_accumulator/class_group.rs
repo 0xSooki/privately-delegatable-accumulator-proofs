@@ -217,17 +217,12 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         self.unblind_mem_proof(blinded_proof, st)
     }
 
-    fn blind_non_mem_proof(
-        &self,
-        element: &Self::Element,
-        prod: &Option<BigUint>,
-    ) -> Self::BlindedNonMembershipProof {
+    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
         unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
         if self.set.contains(element) {
             panic!("Cannot create non-membership proof for an element in the set");
         } else {
             let mut rng = thread_rng();
-            let s = prod.as_ref().unwrap();
 
             // let q = loop {
             //     let seed = rng.gen_biguint(128);
@@ -400,7 +395,7 @@ mod tests {
 
         let non_member = hash_input(&acc, 7u32);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member, &None);
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         for i in 10..12 {
             acc.add(&i);
@@ -422,7 +417,7 @@ mod tests {
 
         let non_member = hash_input(&acc, 200003u32);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member, &None);
+        let blinded_proof = acc.blind_non_mem_proof(&non_member);
 
         let elements_in = vec![65537u32, 100003u32, 104729u32, 1299709u32, 15485863u32];
 

@@ -132,11 +132,7 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
     ) -> Self::MembershipProof;
 
     /// Blind a non-membership proof
-    fn blind_non_mem_proof(
-        &self,
-        element: &Self::Element,
-        prod: &Option<BigUint>,
-    ) -> Self::BlindedNonMembershipProof;
+    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof;
 
     fn blind_non_mem_proof_upd(
         &self,
