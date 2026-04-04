@@ -7,8 +7,6 @@ use std::collections::HashSet;
 pub(super) type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
 pub(super) type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
 
-pub(super) const KEY_SIZE: u64 = 256; // This key size is just for demonstration
-
 #[derive(Clone, Debug)]
 pub struct RsaAccumulator<G: Group> {
     pub group: G,

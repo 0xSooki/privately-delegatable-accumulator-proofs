@@ -1,0 +1,77 @@
+name: Benchmark Bilinear vs Class vs RSA Trapdoorless
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - benches/bench_rsa.rs
+      - figures/plot_bilinear_vs_class_vs_rsa_trapdoorless.py
+      - .github/workflows/benchmark-bilinear-vs-class-vs-rsa-trapdoorless.yml
+      - Cargo.toml
+      - Cargo.lock
+
+jobs:
+  bench-and-plot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CARGO_TERM_COLOR: always
+      MPLBACKEND: Agg
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install plotting dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install matplotlib
+
+      - name: Remove previous bilinear/class/rsa trapdoorless CSV outputs
+        run: |
+          rm -f data_for_latex/rsa_trapdoorless_non_mem_blind_proof_upd.csv
+          rm -f data_for_latex/class_non_mem_blind_proof_upd.csv
+          rm -f data_for_latex/bilinear_non_mem_blind_proof_upd.csv
+          rm -f data_for_latex/rsa_trapdoorless_mem_proof_create.csv
+          rm -f data_for_latex/class_mem_proof_create.csv
+          rm -f data_for_latex/bilinear_mem_proof_create.csv
+          rm -f data_for_latex/rsa_trapdoorless_non_mem_proof_create.csv
+          rm -f data_for_latex/class_non_mem_proof_create.csv
+          rm -f data_for_latex/bilinear_non_mem_proof_create.csv
+
+      - name: Run bilinear vs class vs RSA trapdoorless benchmark group
+        run: |
+          cargo bench --bench bench_rsa --features "rsa,bilinear,class-group" -- bilinear_vs_class_vs_rsa_trapdoorless
+
+      - name: Generate bilinear/class/rsa trapdoorless plot
+        run: python figures/plot_bilinear_vs_class_vs_rsa_trapdoorless.py
+
+      - name: Upload benchmark and plotting artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bilinear-vs-class-vs-rsa-trapdoorless-results
+          if-no-files-found: warn
+          path: |
+            target/criterion/bilinear_vs_class_vs_rsa_trapdoorless/**
+            figures/images/bilinear_vs_class_vs_rsa_trapdoorless.png
+            data_for_latex/rsa_trapdoorless_non_mem_blind_proof_upd.csv
+            data_for_latex/class_non_mem_blind_proof_upd.csv
+            data_for_latex/bilinear_non_mem_blind_proof_upd.csv
+            data_for_latex/rsa_trapdoorless_mem_proof_create.csv
+            data_for_latex/class_mem_proof_create.csv
+            data_for_latex/bilinear_mem_proof_create.csv
+            data_for_latex/rsa_trapdoorless_non_mem_proof_create.csv
+            data_for_latex/class_non_mem_proof_create.csv
+            data_for_latex/bilinear_non_mem_proof_create.csv

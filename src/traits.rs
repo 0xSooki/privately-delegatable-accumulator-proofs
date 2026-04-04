@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use num_bigint::BigUint;
-
 /// Trait for groups
 pub trait Group: Clone + Debug {
     /// The element type in the group

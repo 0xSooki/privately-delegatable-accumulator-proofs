@@ -6,7 +6,11 @@ use num_traits::{One, Zero};
 use rust_miller_rabin::miller_rabin::miller_rabin;
 use sha256::digest;
 
+#[cfg(test)]
 pub const MODULUS_SIZE: u64 = 128;
+
+#[cfg(not(test))]
+pub const MODULUS_SIZE: u64 = 3072;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrapdoorMode {
