@@ -1,15 +1,16 @@
 use super::RsaAccumulator;
-use crate::groups::class_group::{ClassGroup, ClassGroupElement, ClassGroupExponent};
+use crate::groups::class_group::{
+    ClassGroup, ClassGroupElement, ClassGroupExponent, DISC_SIZE, PARI_STACK_SIZE_BYTES,
+};
 use crate::nizk::NIZK;
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 use class_group::pari_init;
 use curv::BigInt;
+use num_bigint::RandBigInt;
 use num_integer::{ExtendedGcd, Integer};
 use num_traits::{One, Zero};
 use rand::{thread_rng, RngCore};
 use std::collections::HashSet;
-
-const PARI_STACK_SIZE_BYTES: usize = 1_000_000_000;
 
 type ClassGroupProof = (ClassGroupElement, ClassGroupElement, ClassGroupExponent);
 type ClassGroupAux = (ClassGroupProof, ClassGroupProof);

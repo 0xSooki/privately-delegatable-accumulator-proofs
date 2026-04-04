@@ -1,10 +1,15 @@
 use crate::traits::Group;
 use class_group::pari_init;
+use class_group::primitives::is_prime;
 use curv::arithmetic::traits::*;
+use curv::cryptographic_primitives::hashing::HmacExt;
 use curv::BigInt;
+use hmac::Hmac;
+use sha2::Sha512;
 use sha256::digest;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::ops::Shl;
 use std::sync::OnceLock;
 
 pub use ::class_group::{
@@ -15,8 +20,8 @@ pub use ::class_group::primitives;
 
 static CLASS_GROUP_128_SETUP: OnceLock<ClassGroup> = OnceLock::new();
 
-const CLASS_GROUP_LAMBDA_128: usize = 2000;
-const PARI_STACK_SIZE_BYTES: usize = 1_000_000_000;
+pub const DISC_SIZE: usize = 3400;
+pub const PARI_STACK_SIZE_BYTES: usize = 100_000_000_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClassGroupElement(pub BinaryQF);
@@ -93,19 +98,23 @@ impl ClassGroup {
     pub fn setup_security() -> Self {
         CLASS_GROUP_128_SETUP
             .get_or_init(|| {
-                unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
+                unsafe {
+                    pari_init(PARI_STACK_SIZE_BYTES, 2);
+                }
 
-                let seed_hex = digest(b"sadhflasdkjflasdkfhjlsdfhlsdfkhsldfhsdhlfksdhlfs");
-                let seed = BigInt::from_str_radix(&seed_hex, 16)
-                    .expect("seed hash must be parseable as hex bigint");
-                let cl_group = primitives::cl_dl_public_setup::CLGroup::new_from_setup(
-                    &CLASS_GROUP_LAMBDA_128,
-                    &seed,
-                );
+                let mut disc = -BigInt::sample(DISC_SIZE);
+                while disc.mod_floor(&BigInt::from(4)) != BigInt::one() || !is_prime(&(-&disc)) {
+                    disc = -BigInt::sample(DISC_SIZE);
+                }
+
+                let x = BigInt::sample(DISC_SIZE);
+                let (a, b) = Self::h_g(&disc, &x);
+                let params = ABDeltaTriple { a, b, delta: disc };
+                let generator = BinaryQF::binary_quadratic_form_disc(&params).reduce();
 
                 Self {
-                    discriminant: cl_group.gq.discriminant(),
-                    generator: cl_group.gq.reduce(),
+                    discriminant: params.delta.clone(),
+                    generator,
                 }
             })
             .clone()
@@ -141,6 +150,54 @@ impl ClassGroup {
         }
 
         candidate
+    }
+
+    /// https://github.com/ZenGo-X/class/blob/ab50f60fab91cd2f307914663f5d079cf7f70643/src/primitives/vdf.rs#L110
+    /// helper function H_G(x)
+    /// Claudio algorithm:
+    /// 1) i = 0,
+    /// 2) r = prng(x,i)
+    /// 3) b = 2r + 1 // guarantee division by 4 later
+    /// 4) u = (b^2 - delta^2) / 4   // = ac
+    /// 5) choose small c at random and check if u/c is integral
+    /// 6) if true: take a = u/c
+    /// 7) if false : i++; goto 2.
+    fn h_g(disc: &BigInt, x: &BigInt) -> (BigInt, BigInt) {
+        let mut i = 0;
+        let two = BigInt::from(2);
+        let max = BigInt::from(20);
+        let mut b = &two * Self::prng(x, i, disc.bit_length()) + BigInt::one();
+        let mut c = two.clone();
+        let mut b2_minus_disc: BigInt = b.pow(2) - disc;
+        let four = BigInt::from(4);
+        let mut u = b2_minus_disc.div_floor(&four);
+        while u.mod_floor(&c) != BigInt::zero() {
+            b = &two * Self::prng(x, i, disc.bit_length()) + BigInt::one();
+            b2_minus_disc = b.pow(2) - disc;
+            u = b2_minus_disc.div_floor(&four);
+            i += 1;
+            c = (&c.next_prime()).mod_floor(&max);
+        }
+        let a = u.div_floor(&c);
+        (a, b)
+    }
+
+    fn prng(seed: &BigInt, i: usize, bitlen: usize) -> BigInt {
+        let i_bn = BigInt::from(i as i32);
+        let mut res = Hmac::<Sha512>::new_bigint(&i_bn)
+            .chain_bigint(seed)
+            .result_bigint();
+        let mut tmp: BigInt = res.clone();
+        let mut res_bit_len = res.bit_length();
+        while res_bit_len < bitlen {
+            tmp = Hmac::<Sha512>::new_bigint(&i_bn)
+                .chain_bigint(&tmp)
+                .result_bigint();
+            res = &res.shl(res_bit_len) + &tmp;
+            res_bit_len = res.bit_length();
+        }
+        // prune to get |res| = bitlen
+        res >> (res_bit_len - bitlen)
     }
 }
 
