@@ -1,5 +1,5 @@
-use super::{Aux, RsaAccumulator, UpdatedBlindProof, KEY_SIZE};
-use crate::groups::rsa_group::RsaGroup;
+use super::{Aux, RsaAccumulator, UpdatedBlindProof};
+use crate::groups::rsa_group::{RsaGroup, MODULUS_SIZE};
 use crate::nizk::NIZK;
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 use glass_pumpkin::safe_prime;
@@ -13,8 +13,8 @@ impl RsaAccumulator<RsaGroup> {
     pub fn setup() -> Self {
         let mut rng = rand::thread_rng();
 
-        let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-        let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let p_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
+        let q_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
 
@@ -27,11 +27,17 @@ impl RsaAccumulator<RsaGroup> {
         Self::new(group)
     }
 
+    pub fn setup_from_params(p: BigUint, q: BigUint, g: BigUint, order: Option<BigUint>) -> Self {
+        let n = &p * &q;
+        let group = RsaGroup::new(n, g, order);
+        Self::new(group)
+    }
+
     pub fn setup_trapdoorless() -> Self {
         let mut rng = rand::thread_rng();
 
-        let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-        let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let p_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
+        let q_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
         let n = &p * &q;

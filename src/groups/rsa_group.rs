@@ -6,7 +6,7 @@ use num_traits::{One, Zero};
 use rust_miller_rabin::miller_rabin::miller_rabin;
 use sha256::digest;
 
-const KEY_SIZE: u64 = 128;
+pub const MODULUS_SIZE: u64 = 128;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrapdoorMode {
@@ -34,8 +34,8 @@ impl Group for RsaGroup {
     fn setup() -> Self {
         let mut rng = rand::thread_rng();
 
-        let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-        let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let p_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
+        let q_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
 
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
@@ -111,8 +111,8 @@ impl RsaGroup {
     pub fn setup_trapdoorless() -> Self {
         let mut rng = rand::thread_rng();
 
-        let p_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
-        let q_uint = safe_prime::new(KEY_SIZE as usize).unwrap();
+        let p_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
+        let q_uint = safe_prime::new(MODULUS_SIZE as usize).unwrap();
 
         let p = BigUint::from(p_uint);
         let q = BigUint::from(q_uint);
