@@ -14,7 +14,7 @@ on:
 jobs:
   bench-and-plot:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       CARGO_TERM_COLOR: always
       MPLBACKEND: Agg
