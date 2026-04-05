@@ -10,7 +10,7 @@ use sha256::digest;
 pub const MODULUS_SIZE: u64 = 128;
 
 #[cfg(not(test))]
-pub const MODULUS_SIZE: u64 = 128;
+pub const MODULUS_SIZE: u64 = 3072;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrapdoorMode {
