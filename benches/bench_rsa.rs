@@ -622,9 +622,14 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
             .collect();
 
         let mut rng = test_rng();
-        let bilinear_template = BilinearAccumulator::<Bls12_381>::setup(&mut rng, max_size + 4);
+        let bilinear_template =
+            BilinearAccumulator::<Bls12_381>::setup(&mut rng, (2 * max_size) + 8);
 
         let all_elements_bilinear: Vec<Fr> = (1u64..=(max_size as u64)).map(Fr::from).collect();
+        let all_update_elements_bilinear: Vec<Fr> = ((max_size as u64) + 1
+            ..=((2 * max_size) as u64))
+            .map(Fr::from)
+            .collect();
 
         let non_element_rsa = BigUint::from(741569u64);
         let element_rsa = BigUint::from(200003u64);
@@ -667,9 +672,7 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
             let bilinear_non_mem_proof = base_acc_bilinear
                 .non_mem_proof_create(non_element_bilinear)
                 .expect("bilinear non-membership proof");
-            let bilinear_blinded_non_mem_proof = base_acc_bilinear
-                .blind_non_mem_proof(&bilinear_non_mem_proof, non_element_bilinear);
-            let bilinear_sn_plus_one = Fr::from((size as u64) + 1_000_003u64);
+            let bilinear_update_elements = all_update_elements_bilinear[..size].to_vec();
 
             group.bench_with_input(
                 BenchmarkId::new("rsa_trapdoorless_non_mem_blind_proof_upd", size),
@@ -700,13 +703,26 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
             group.bench_with_input(
                 BenchmarkId::new("bilinear_non_mem_blind_proof_upd", size),
                 &size,
-                |b, &_n| {
-                    b.iter(|| {
-                        let _ = black_box(base_acc_bilinear.blind_non_mem_proof_upd(
-                            black_box(&bilinear_blinded_non_mem_proof.0),
-                            black_box(&bilinear_sn_plus_one),
-                        ));
-                    });
+                |b, &n| {
+                    b.iter_batched(
+                        || (base_acc_bilinear.clone(), bilinear_non_mem_proof.clone()),
+                        |(mut acc, mut proof)| {
+                            for sn_plus_one in bilinear_update_elements.iter().take(n) {
+                                let (blinded_non_mem_proof, r) =
+                                    acc.blind_non_mem_proof(&proof, non_element_bilinear);
+                                acc.add(sn_plus_one);
+                                let blinded_updated_proof = acc
+                                    .blind_non_mem_proof_upd(&blinded_non_mem_proof, sn_plus_one);
+                                proof = acc.unblind_non_mem_proof(
+                                    &blinded_updated_proof,
+                                    &(r, blinded_non_mem_proof.1),
+                                    non_element_bilinear,
+                                );
+                            }
+                            black_box(proof);
+                        },
+                        BatchSize::SmallInput,
+                    );
                 },
             );
 
