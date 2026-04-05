@@ -1,14 +1,12 @@
-#[cfg(feature = "class-group")]
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_std::{test_rng, time::Duration};
-use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_bigint::{BigInt, BigUint};
 #[cfg(feature = "class-group")]
 use privacy_preserving_accumulators::groups::ClassGroup;
 use privacy_preserving_accumulators::{
     groups::RsaGroup, BilinearAccumulator, Group, RsaAccumulator,
 };
-use std::cmp::max;
 
 fn benchmark_blind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
@@ -611,32 +609,20 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
         let sizes = [8usize, 16, 32, 64, 128, 256, 512, 1024];
         let max_size = *sizes.iter().max().unwrap();
 
-        let p = BigUint::parse_bytes(
-            b"2267297759431343191300191117631178996160912890699007599968903517558228674265616640038329098283151619506085400129078138074316403776647047298193001688364755416455052458503740557407489952032108572410456117277448537280227329915726045001357392633892511739313500428934633150568061089011527949505574685831476331858740558741027264863840830366446079698304600420973625915839471463737161113508212749860875798501176257241871845465773140094344012250038442832190451497258754985725904567072150265683348311220872108213380365901536149559199856045162502989439948223703444072722462903328242698530173409459110957400942433029258586395638621480094090246515641786803374940878780573429570233733890554776362906415074521090443831086165797836932189345820148080881718021355998568126409752498762058486525866958320899199137626375405519147151121750847843591421509809445950424292183453636590571948353189751243605191113118648014788087111933927832787978329633",
-            10,
-        )
-        .expect("invalid fixed p");
-        let q = BigUint::parse_bytes(
-            b"4534595518862686382600382235262357992321825781398015199937807035116457348531233280076658196566303239012170800258156276148632807553294094596386003376729510832910104917007481114814979904064217144820912234554897074560454659831452090002714785267785023478627000857869266301136122178023055899011149371662952663717481117482054529727681660732892159396609200841947251831678942927474322227016425499721751597002352514483743690931546280188688024500076885664380902994517509971451809134144300531366696622441744216426760731803072299118399712090325005978879896447406888145444925806656485397060346818918221914801884866058517172791277242960188180493031283573606749881757561146859140467467781109552725812830149042180887662172331595673864378691640296161763436042711997136252819504997524116973051733916641798398275252750811038294302243501695687182843019618891900848584366907273181143896706379502487210382226237296029576174223867855665575956659267",
-            10,
-        )
-        .expect("invalid fixed q");
-        let g_rsa = BigUint::from(2u32);
-
-        let temp_acc_rsa = RsaAccumulator::<RsaGroup>::setup_from_params(
-            p.clone(),
-            q.clone(),
-            g_rsa.clone(),
-            None,
-        );
+        let temp_acc_rsa = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
+        let rsa_template = temp_acc_rsa.clone();
         let all_primes_rsa: Vec<BigUint> = (0..max_size)
             .map(|i| temp_acc_rsa.group.hash_to_prime(&i.to_be_bytes()))
             .collect();
 
         let temp_acc_class = RsaAccumulator::<ClassGroup>::setup_trapdoorless();
+        let class_template = temp_acc_class.clone();
         let all_primes_class: Vec<_> = (0..max_size)
             .map(|i| temp_acc_class.group.hash_to_prime(&i.to_be_bytes()))
             .collect();
+
+        let mut rng = test_rng();
+        let bilinear_template = BilinearAccumulator::<Bls12_381>::setup(&mut rng, max_size + 4);
 
         let all_elements_bilinear: Vec<Fr> = (1u64..=(max_size as u64)).map(Fr::from).collect();
 
@@ -649,35 +635,35 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
         let non_element_bilinear = Fr::from(741569u64);
         let element_bilinear = Fr::from(200003u64);
 
+        let mut running_rsa = rsa_template.clone();
+        let ep_rsa = running_rsa.add(&element_rsa);
+
+        let mut running_class = class_template.clone();
+        let ep_class = running_class.add(&element_class);
+
+        let mut running_bilinear = bilinear_template.clone();
+        running_bilinear.add(&element_bilinear);
+
+        let mut prev_size = 0usize;
+
         for &size in sizes.iter() {
-            let mut base_acc_rsa = RsaAccumulator::<RsaGroup>::setup_from_params(
-                p.clone(),
-                q.clone(),
-                g_rsa.clone(),
-                None,
-            );
-            let ep_rsa = base_acc_rsa.add(&element_rsa);
-            for i in 0..size {
-                base_acc_rsa.add(&all_primes_rsa[i]);
+            for i in prev_size..size {
+                running_rsa.add(&all_primes_rsa[i]);
+                running_class.add(&all_primes_class[i]);
+                running_bilinear.add(&all_elements_bilinear[i]);
             }
+            prev_size = size;
+
+            let base_acc_rsa = running_rsa.clone();
             let rsa_blinded_non_mem_proof = base_acc_rsa.blind_non_mem_proof(&non_element_rsa);
             let rsa_delta = BigInt::from(base_acc_rsa.calculate_product());
 
-            let mut base_acc_class = RsaAccumulator::<ClassGroup>::setup_trapdoorless();
-            let ep_class = base_acc_class.add(&element_class);
-            for i in 0..size {
-                base_acc_class.add(&all_primes_class[i]);
-            }
+            let base_acc_class = running_class.clone();
             let class_blinded_non_mem_proof =
                 base_acc_class.blind_non_mem_proof(&non_element_class);
             let class_delta = base_acc_class.calculate_product_unreduced();
 
-            let mut rng = test_rng();
-            let mut base_acc_bilinear = BilinearAccumulator::<Bls12_381>::setup(&mut rng, size + 4);
-            base_acc_bilinear.add(&element_bilinear);
-            for i in 0..size {
-                base_acc_bilinear.add(&all_elements_bilinear[i]);
-            }
+            let base_acc_bilinear = running_bilinear.clone();
             let bilinear_non_mem_proof = base_acc_bilinear
                 .non_mem_proof_create(non_element_bilinear)
                 .expect("bilinear non-membership proof");
@@ -689,19 +675,12 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("rsa_trapdoorless_non_mem_blind_proof_upd", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || {
-                            (
-                                base_acc_rsa.clone(),
-                                rsa_blinded_non_mem_proof.clone(),
-                                rsa_delta.clone(),
-                            )
-                        },
-                        |(acc, blinded_non_mem_proof, delta)| {
-                            acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(base_acc_rsa.blind_non_mem_proof_upd(
+                            black_box(&rsa_blinded_non_mem_proof.0),
+                            black_box(&rsa_delta),
+                        ));
+                    });
                 },
             );
 
@@ -709,19 +688,12 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("class_non_mem_blind_proof_upd", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || {
-                            (
-                                base_acc_class.clone(),
-                                class_blinded_non_mem_proof.clone(),
-                                class_delta.clone(),
-                            )
-                        },
-                        |(acc, blinded_non_mem_proof, delta)| {
-                            acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &delta);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(base_acc_class.blind_non_mem_proof_upd(
+                            black_box(&class_blinded_non_mem_proof.0),
+                            black_box(&class_delta),
+                        ));
+                    });
                 },
             );
 
@@ -729,20 +701,12 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("bilinear_non_mem_blind_proof_upd", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || {
-                            (
-                                base_acc_bilinear.clone(),
-                                bilinear_blinded_non_mem_proof.clone(),
-                                bilinear_sn_plus_one,
-                            )
-                        },
-                        |(acc, blinded_non_mem_proof, sn_plus_one)| {
-                            let _ =
-                                acc.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, &sn_plus_one);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        let _ = black_box(base_acc_bilinear.blind_non_mem_proof_upd(
+                            black_box(&bilinear_blinded_non_mem_proof.0),
+                            black_box(&bilinear_sn_plus_one),
+                        ));
+                    });
                 },
             );
 
@@ -750,13 +714,9 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("rsa_trapdoorless_mem_proof_create", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || (base_acc_rsa.clone(), ep_rsa.clone()),
-                        |(acc, ep)| {
-                            acc.mem_proof_create(&ep);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(base_acc_rsa.mem_proof_create(black_box(&ep_rsa)));
+                    });
                 },
             );
 
@@ -764,13 +724,9 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("class_mem_proof_create", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || (base_acc_class.clone(), ep_class.clone()),
-                        |(acc, ep)| {
-                            acc.mem_proof_create(&ep);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(base_acc_class.mem_proof_create(black_box(&ep_class)));
+                    });
                 },
             );
 
@@ -778,13 +734,13 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("bilinear_mem_proof_create", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || (base_acc_bilinear.clone(), element_bilinear),
-                        |(acc, ep)| {
-                            let _ = acc.mem_proof_create(ep).expect("bilinear membership proof");
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(
+                            base_acc_bilinear
+                                .mem_proof_create(black_box(element_bilinear))
+                                .expect("bilinear membership proof"),
+                        );
+                    });
                 },
             );
 
@@ -792,19 +748,12 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("rsa_trapdoorless_non_mem_proof_create", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || {
-                            (
-                                base_acc_rsa.clone(),
-                                non_element_rsa.clone(),
-                                rsa_delta.clone(),
-                            )
-                        },
-                        |(acc, non_member, prod)| {
-                            acc.non_mem_proof_create(&non_member, &prod);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(base_acc_rsa.non_mem_proof_create(
+                            black_box(&non_element_rsa),
+                            black_box(&rsa_delta),
+                        ));
+                    });
                 },
             );
 
@@ -812,19 +761,12 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("class_non_mem_proof_create", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || {
-                            (
-                                base_acc_class.clone(),
-                                non_element_class.clone(),
-                                class_delta.clone(),
-                            )
-                        },
-                        |(acc, non_member, prod)| {
-                            acc.non_mem_proof_create(&non_member, &prod);
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(base_acc_class.non_mem_proof_create(
+                            black_box(&non_element_class),
+                            black_box(&class_delta),
+                        ));
+                    });
                 },
             );
 
@@ -832,15 +774,13 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 BenchmarkId::new("bilinear_non_mem_proof_create", size),
                 &size,
                 |b, &_n| {
-                    b.iter_batched(
-                        || (base_acc_bilinear.clone(), non_element_bilinear),
-                        |(acc, non_member)| {
-                            let _ = acc
-                                .non_mem_proof_create(non_member)
-                                .expect("bilinear non-membership proof");
-                        },
-                        BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        black_box(
+                            base_acc_bilinear
+                                .non_mem_proof_create(black_box(non_element_bilinear))
+                                .expect("bilinear non-membership proof"),
+                        );
+                    });
                 },
             );
         }
