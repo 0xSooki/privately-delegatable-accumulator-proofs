@@ -12,6 +12,7 @@ FAMILIES = [
     (
         "Blind Non-Membership Proof Update",
         [
+            ("rsa_trapdoored_non_mem_blind_proof_upd", "RSA trapdoored", "#ff7f0e"),
             ("rsa_trapdoorless_non_mem_blind_proof_upd", "RSA trapdoorless", "#1f77b4"),
             ("class_non_mem_blind_proof_upd", "Class group", "#d62728"),
             ("bilinear_non_mem_blind_proof_upd", "Bilinear", "#2ca02c"),
@@ -20,6 +21,7 @@ FAMILIES = [
     (
         "Membership Proof Create",
         [
+            ("rsa_trapdoored_mem_proof_create", "RSA trapdoored", "#ff7f0e"),
             ("rsa_trapdoorless_mem_proof_create", "RSA trapdoorless", "#1f77b4"),
             ("class_mem_proof_create", "Class group", "#d62728"),
             ("bilinear_mem_proof_create", "Bilinear", "#2ca02c"),
@@ -28,6 +30,7 @@ FAMILIES = [
     (
         "Non-Membership Proof Create",
         [
+            ("rsa_trapdoored_non_mem_proof_create", "RSA trapdoored", "#ff7f0e"),
             ("rsa_trapdoorless_non_mem_proof_create", "RSA trapdoorless", "#1f77b4"),
             ("class_non_mem_proof_create", "Class group", "#d62728"),
             ("bilinear_non_mem_proof_create", "Bilinear", "#2ca02c"),

@@ -615,6 +615,12 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
             .map(|i| temp_acc_rsa.group.hash_to_prime(&i.to_be_bytes()))
             .collect();
 
+        let temp_acc_rsa_td = RsaAccumulator::<RsaGroup>::setup();
+        let rsa_td_template = temp_acc_rsa_td.clone();
+        let all_primes_rsa_td: Vec<BigUint> = (0..max_size)
+            .map(|i| temp_acc_rsa_td.group.hash_to_prime(&i.to_be_bytes()))
+            .collect();
+
         let temp_acc_class = RsaAccumulator::<ClassGroup>::setup_trapdoorless();
         let class_template = temp_acc_class.clone();
         let all_primes_class: Vec<_> = (0..max_size)
@@ -643,6 +649,9 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
         let mut running_rsa = rsa_template.clone();
         let ep_rsa = running_rsa.add(&element_rsa);
 
+        let mut running_rsa_td = rsa_td_template.clone();
+        let ep_rsa_td = running_rsa_td.add(&element_rsa);
+
         let mut running_class = class_template.clone();
         let ep_class = running_class.add(&element_class);
 
@@ -654,6 +663,7 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
         for &size in sizes.iter() {
             for i in prev_size..size {
                 running_rsa.add(&all_primes_rsa[i]);
+                running_rsa_td.add(&all_primes_rsa_td[i]);
                 running_class.add(&all_primes_class[i]);
                 running_bilinear.add(&all_elements_bilinear[i]);
             }
@@ -662,6 +672,11 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
             let base_acc_rsa = running_rsa.clone();
             let rsa_blinded_non_mem_proof = base_acc_rsa.blind_non_mem_proof(&non_element_rsa);
             let rsa_delta = BigInt::from(base_acc_rsa.calculate_product());
+
+            let base_acc_rsa_td = running_rsa_td.clone();
+            let rsa_td_blinded_non_mem_proof =
+                base_acc_rsa_td.blind_non_mem_proof(&non_element_rsa);
+            let rsa_delta_td = BigInt::from(base_acc_rsa_td.calculate_product());
 
             let base_acc_class = running_class.clone();
             let class_blinded_non_mem_proof =
@@ -682,6 +697,19 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                         black_box(base_acc_rsa.blind_non_mem_proof_upd(
                             black_box(&rsa_blinded_non_mem_proof.0),
                             black_box(&rsa_delta),
+                        ));
+                    });
+                },
+            );
+
+            group.bench_with_input(
+                BenchmarkId::new("rsa_trapdoored_non_mem_blind_proof_upd", size),
+                &size,
+                |b, &_n| {
+                    b.iter(|| {
+                        black_box(base_acc_rsa_td.blind_non_mem_proof_upd(
+                            black_box(&rsa_td_blinded_non_mem_proof.0),
+                            black_box(&rsa_delta_td),
                         ));
                     });
                 },
@@ -737,6 +765,16 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
             );
 
             group.bench_with_input(
+                BenchmarkId::new("rsa_trapdoored_mem_proof_create", size),
+                &size,
+                |b, &_n| {
+                    b.iter(|| {
+                        black_box(base_acc_rsa_td.mem_proof_create(black_box(&ep_rsa_td)));
+                    });
+                },
+            );
+
+            group.bench_with_input(
                 BenchmarkId::new("class_mem_proof_create", size),
                 &size,
                 |b, &_n| {
@@ -768,6 +806,19 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                         black_box(base_acc_rsa.non_mem_proof_create(
                             black_box(&non_element_rsa),
                             black_box(&rsa_delta),
+                        ));
+                    });
+                },
+            );
+
+            group.bench_with_input(
+                BenchmarkId::new("rsa_trapdoored_non_mem_proof_create", size),
+                &size,
+                |b, &_n| {
+                    b.iter(|| {
+                        black_box(base_acc_rsa_td.non_mem_proof_create(
+                            black_box(&non_element_rsa),
+                            black_box(&rsa_delta_td),
                         ));
                     });
                 },
