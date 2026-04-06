@@ -29,6 +29,25 @@ FAMILIES = [
         ],
     ),
     (
+        "Blind Membership Proof Update",
+        [
+            (
+                "rsa_trapdoored_mem_blind_proof_upd",
+                "RSA trapdoored",
+                "#ff7f0e",
+                "^",
+            ),
+            (
+                "rsa_trapdoorless_mem_blind_proof_upd",
+                "RSA trapdoorless",
+                "#1f77b4",
+                "o",
+            ),
+            ("class_mem_blind_proof_upd", "Class group", "#d62728", "s"),
+            ("bilinear_mem_blind_proof_upd", "Bilinear", "#2ca02c", "D"),
+        ],
+    ),
+    (
         "Membership Proof Create",
         [
             ("rsa_trapdoored_mem_proof_create", "RSA trapdoored", "#ff7f0e", "^"),
@@ -108,7 +127,7 @@ def main():
     if not BASE_DIR.exists():
         raise FileNotFoundError(f"Missing benchmark directory: {BASE_DIR}")
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(1, 4, figsize=(24, 5))
 
     for ax, (title, families) in zip(axes, FAMILIES):
         for bench_id, label, color, marker in families:

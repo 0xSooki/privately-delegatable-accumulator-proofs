@@ -147,6 +147,10 @@ impl RsaGroup {
         self.order.as_ref()
     }
 
+    pub fn set_order(&mut self, order: Option<BigUint>) {
+        self.order = order;
+    }
+
     pub fn modulus(&self) -> &BigUint {
         &self.n
     }

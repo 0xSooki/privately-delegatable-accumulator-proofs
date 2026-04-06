@@ -48,6 +48,14 @@ impl RsaAccumulator<RsaGroup> {
         Self::new(group)
     }
 
+    pub fn set_group_order(&mut self, order: Option<BigUint>) {
+        self.group.set_order(order);
+    }
+
+    pub fn clear_group_order(&mut self) {
+        self.group.set_order(None);
+    }
+
     pub fn calculate_product(&self) -> BigUint {
         if let Some(o) = self.group.order() {
             self.set.iter().fold(BigUint::one(), |acc, v| (acc * v) % o)
@@ -118,8 +126,14 @@ impl RsaAccumulator<RsaGroup> {
         blinded_proof: &BigUint,
     ) -> UpdatedBlindProof {
         let mut delta = BigUint::one();
-        for elem in &elem_in {
-            delta *= elem;
+        if let Some(o) = self.group.order() {
+            for elem in elem_in {
+                delta = (delta * elem) % o;
+            }
+        } else {
+            for elem in elem_in {
+                delta *= elem;
+            }
         }
 
         let acc_t_prime = &self.acc;
