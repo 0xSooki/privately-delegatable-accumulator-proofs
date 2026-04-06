@@ -12,28 +12,53 @@ FAMILIES = [
     (
         "Blind Non-Membership Proof Update",
         [
-            ("rsa_trapdoored_non_mem_blind_proof_upd", "RSA trapdoored", "#ff7f0e"),
-            ("rsa_trapdoorless_non_mem_blind_proof_upd", "RSA trapdoorless", "#1f77b4"),
-            ("class_non_mem_blind_proof_upd", "Class group", "#d62728"),
-            ("bilinear_non_mem_blind_proof_upd", "Bilinear", "#2ca02c"),
+            (
+                "rsa_trapdoored_non_mem_blind_proof_upd",
+                "RSA trapdoored",
+                "#ff7f0e",
+                "^",
+            ),
+            (
+                "rsa_trapdoorless_non_mem_blind_proof_upd",
+                "RSA trapdoorless",
+                "#1f77b4",
+                "o",
+            ),
+            ("class_non_mem_blind_proof_upd", "Class group", "#d62728", "s"),
+            ("bilinear_non_mem_blind_proof_upd", "Bilinear", "#2ca02c", "D"),
         ],
     ),
     (
         "Membership Proof Create",
         [
-            ("rsa_trapdoored_mem_proof_create", "RSA trapdoored", "#ff7f0e"),
-            ("rsa_trapdoorless_mem_proof_create", "RSA trapdoorless", "#1f77b4"),
-            ("class_mem_proof_create", "Class group", "#d62728"),
-            ("bilinear_mem_proof_create", "Bilinear", "#2ca02c"),
+            ("rsa_trapdoored_mem_proof_create", "RSA trapdoored", "#ff7f0e", "^"),
+            (
+                "rsa_trapdoorless_mem_proof_create",
+                "RSA trapdoorless",
+                "#1f77b4",
+                "o",
+            ),
+            ("class_mem_proof_create", "Class group", "#d62728", "s"),
+            ("bilinear_mem_proof_create", "Bilinear", "#2ca02c", "D"),
         ],
     ),
     (
         "Non-Membership Proof Create",
         [
-            ("rsa_trapdoored_non_mem_proof_create", "RSA trapdoored", "#ff7f0e"),
-            ("rsa_trapdoorless_non_mem_proof_create", "RSA trapdoorless", "#1f77b4"),
-            ("class_non_mem_proof_create", "Class group", "#d62728"),
-            ("bilinear_non_mem_proof_create", "Bilinear", "#2ca02c"),
+            (
+                "rsa_trapdoored_non_mem_proof_create",
+                "RSA trapdoored",
+                "#ff7f0e",
+                "^",
+            ),
+            (
+                "rsa_trapdoorless_non_mem_proof_create",
+                "RSA trapdoorless",
+                "#1f77b4",
+                "o",
+            ),
+            ("class_non_mem_proof_create", "Class group", "#d62728", "s"),
+            ("bilinear_non_mem_proof_create", "Bilinear", "#2ca02c", "D"),
         ],
     ),
 ]
@@ -86,14 +111,25 @@ def main():
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     for ax, (title, families) in zip(axes, FAMILIES):
-        for bench_id, label, color in families:
+        for bench_id, label, color, marker in families:
             rows = load_series(bench_id)
             if not rows:
                 continue
 
             x = [r[0] for r in rows]
             y = [r[1] for r in rows]
-            ax.plot(x, y, marker="o", linewidth=2.2, markersize=5, color=color, label=label)
+            ax.plot(
+                x,
+                y,
+                marker=marker,
+                linewidth=2.2,
+                markersize=6,
+                markerfacecolor="white",
+                markeredgecolor="black",
+                markeredgewidth=1.2,
+                color=color,
+                label=label,
+            )
 
             export_csv(bench_id, rows)
             print(f"Loaded {bench_id}: {len(rows)} points -> {x}")
