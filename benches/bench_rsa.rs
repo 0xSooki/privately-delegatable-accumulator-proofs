@@ -1,4 +1,6 @@
 use ark_bls12_381::{Bls12_381, Fr};
+use ark_ff::Zero;
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_std::{test_rng, time::Duration};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_bigint::{BigInt, BigUint};
@@ -7,6 +9,22 @@ use privacy_preserving_accumulators::groups::ClassGroup;
 use privacy_preserving_accumulators::{
     groups::RsaGroup, BilinearAccumulator, Group, RsaAccumulator,
 };
+
+fn syn_div_fr(poly: &DensePolynomial<Fr>, c: &Fr) -> (DensePolynomial<Fr>, Fr) {
+    let coeffs = poly.coeffs();
+    if coeffs.len() <= 1 {
+        let r = coeffs.first().copied().unwrap_or_else(Fr::zero);
+        return (DensePolynomial::zero(), r);
+    }
+    let n = coeffs.len();
+    let mut q = vec![Fr::zero(); n - 1];
+    q[n - 2] = coeffs[n - 1];
+    for i in (0..n - 2).rev() {
+        q[i] = coeffs[i + 1] + *c * q[i + 1];
+    }
+    let r = coeffs[0] + *c * q[0];
+    (DensePolynomial::from_coefficients_vec(q), r)
+}
 
 fn benchmark_blind_mem_proof(c: &mut Criterion) {
     let mut group = c.benchmark_group("membership_proofs");
@@ -614,16 +632,25 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
         let all_primes_rsa: Vec<BigUint> = (0..max_size)
             .map(|i| temp_acc_rsa.group.hash_to_prime(&i.to_be_bytes()))
             .collect();
+        let all_update_primes_rsa: Vec<BigUint> = (max_size..(2 * max_size))
+            .map(|i| temp_acc_rsa.group.hash_to_prime(&i.to_be_bytes()))
+            .collect();
 
         let temp_acc_rsa_td = RsaAccumulator::<RsaGroup>::setup();
         let rsa_td_template = temp_acc_rsa_td.clone();
         let all_primes_rsa_td: Vec<BigUint> = (0..max_size)
             .map(|i| temp_acc_rsa_td.group.hash_to_prime(&i.to_be_bytes()))
             .collect();
+        let all_update_primes_rsa_td: Vec<BigUint> = (max_size..(2 * max_size))
+            .map(|i| temp_acc_rsa_td.group.hash_to_prime(&i.to_be_bytes()))
+            .collect();
 
         let temp_acc_class = RsaAccumulator::<ClassGroup>::setup_trapdoorless();
         let class_template = temp_acc_class.clone();
         let all_primes_class: Vec<_> = (0..max_size)
+            .map(|i| temp_acc_class.group.hash_to_prime(&i.to_be_bytes()))
+            .collect();
+        let all_update_primes_class: Vec<_> = (max_size..(2 * max_size))
             .map(|i| temp_acc_class.group.hash_to_prime(&i.to_be_bytes()))
             .collect();
 
@@ -688,6 +715,19 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 .non_mem_proof_create(non_element_bilinear)
                 .expect("bilinear non-membership proof");
             let bilinear_update_elements = all_update_elements_bilinear[..size].to_vec();
+            let rsa_update_elements = all_update_primes_rsa[..size].to_vec();
+            let rsa_td_update_elements = all_update_primes_rsa_td[..size].to_vec();
+            let class_update_elements = all_update_primes_class[..size].to_vec();
+
+            let mut s_poly = DensePolynomial::from_coefficients_vec(vec![Fr::from(1u64)]);
+            let mut current_elements_bilinear = Vec::with_capacity(size + 1);
+            current_elements_bilinear.push(element_bilinear);
+            current_elements_bilinear.extend_from_slice(&all_elements_bilinear[..size]);
+            for xi in &current_elements_bilinear {
+                let factor = DensePolynomial::from_coefficients_vec(vec![-*xi, Fr::from(1u64)]);
+                s_poly = &s_poly * &factor;
+            }
+            let (bilinear_q, _) = syn_div_fr(&s_poly, &element_bilinear);
 
             group.bench_with_input(
                 BenchmarkId::new("rsa_trapdoorless_non_mem_blind_proof_upd", size),
@@ -748,6 +788,118 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                                 );
                             }
                             black_box(proof);
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+
+            group.bench_with_input(
+                BenchmarkId::new("rsa_trapdoorless_mem_blind_proof_upd", size),
+                &size,
+                |b, &_n| {
+                    b.iter_batched(
+                        || {
+                            let mut acc = base_acc_rsa.clone();
+                            let acc_t = acc.acc.clone();
+                            let proof = acc.mem_proof_create(&ep_rsa);
+                            let blinded_proof = acc.blind_mem_proof(&proof);
+                            let elements_in = rsa_update_elements.clone();
+                            for elem in &elements_in {
+                                acc.add(elem);
+                            }
+                            (acc, elements_in, acc_t, blinded_proof)
+                        },
+                        |(acc, elements_in, acc_t, blinded_proof)| {
+                            black_box(acc.blind_mem_proof_upd(
+                                elements_in,
+                                vec![],
+                                &acc_t,
+                                &blinded_proof.0,
+                            ));
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+
+            group.bench_with_input(
+                BenchmarkId::new("rsa_trapdoored_mem_blind_proof_upd", size),
+                &size,
+                |b, &_n| {
+                    b.iter_batched(
+                        || {
+                            let mut acc = base_acc_rsa_td.clone();
+                            let acc_t = acc.acc.clone();
+                            let proof = acc.mem_proof_create(&ep_rsa_td);
+                            let blinded_proof = acc.blind_mem_proof(&proof);
+                            let elements_in = rsa_td_update_elements.clone();
+                            for elem in &elements_in {
+                                acc.add(elem);
+                            }
+                            (acc, elements_in, acc_t, blinded_proof)
+                        },
+                        |(acc, elements_in, acc_t, blinded_proof)| {
+                            black_box(acc.blind_mem_proof_upd(
+                                elements_in,
+                                vec![],
+                                &acc_t,
+                                &blinded_proof.0,
+                            ));
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+
+            group.bench_with_input(
+                BenchmarkId::new("class_mem_blind_proof_upd", size),
+                &size,
+                |b, &_n| {
+                    b.iter_batched(
+                        || {
+                            let mut acc = base_acc_class.clone();
+                            let acc_t = acc.acc.clone();
+                            let proof = acc.mem_proof_create(&ep_class);
+                            let blinded_proof = acc.blind_mem_proof(&proof);
+                            let elements_in = class_update_elements.clone();
+                            for elem in &elements_in {
+                                acc.add(elem);
+                            }
+                            (acc, elements_in, acc_t, blinded_proof)
+                        },
+                        |(acc, elements_in, acc_t, blinded_proof)| {
+                            black_box(acc.blind_mem_proof_upd(
+                                elements_in,
+                                vec![],
+                                &acc_t,
+                                &blinded_proof.0,
+                            ));
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+
+            group.bench_with_input(
+                BenchmarkId::new("bilinear_mem_blind_proof_upd", size),
+                &size,
+                |b, &_n| {
+                    b.iter_batched(
+                        || {
+                            let mut acc = base_acc_bilinear.clone();
+                            let elements_in = bilinear_update_elements.clone();
+                            let mut rng = test_rng();
+                            let (crs_prime, _r) = acc
+                                .blind_mem_proof(&mut rng, &bilinear_q, elements_in.len())
+                                .expect("bilinear blind membership proof");
+                            for elem in &elements_in {
+                                acc.add(elem);
+                            }
+                            (acc, elements_in, crs_prime)
+                        },
+                        |(acc, elements_in, crs_prime)| {
+                            let _ = black_box(acc.blind_mem_proof_upd(elements_in, crs_prime));
                         },
                         BatchSize::SmallInput,
                     );
