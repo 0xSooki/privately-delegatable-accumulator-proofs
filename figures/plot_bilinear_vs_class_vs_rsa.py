@@ -10,25 +10,6 @@ OUT_CSV_DIR = Path("data_for_latex")
 
 FAMILIES = [
     (
-        "Blind Non-Membership Proof Update",
-        [
-            (
-                "rsa_trapdoored_non_mem_blind_proof_upd",
-                "RSA trapdoored",
-                "#ff7f0e",
-                "^",
-            ),
-            (
-                "rsa_trapdoorless_non_mem_blind_proof_upd",
-                "RSA trapdoorless",
-                "#1f77b4",
-                "o",
-            ),
-            ("class_non_mem_blind_proof_upd", "Class group", "#d62728", "s"),
-            ("bilinear_non_mem_blind_proof_upd", "Bilinear", "#2ca02c", "D"),
-        ],
-    ),
-    (
         "Blind Membership Proof Update",
         [
             (
@@ -48,36 +29,95 @@ FAMILIES = [
         ],
     ),
     (
-        "Membership Proof Create",
-        [
-            ("rsa_trapdoored_mem_proof_create", "RSA trapdoored", "#ff7f0e", "^"),
-            (
-                "rsa_trapdoorless_mem_proof_create",
-                "RSA trapdoorless",
-                "#1f77b4",
-                "o",
-            ),
-            ("class_mem_proof_create", "Class group", "#d62728", "s"),
-            ("bilinear_mem_proof_create", "Bilinear", "#2ca02c", "D"),
-        ],
-    ),
-    (
-        "Non-Membership Proof Create",
+        "Blind Membership Update Overhead",
         [
             (
-                "rsa_trapdoored_non_mem_proof_create",
+                (
+                    "rsa_trapdoored_mem_blind_proof_upd",
+                    "rsa_trapdoored_mem_proof_create",
+                ),
                 "RSA trapdoored",
                 "#ff7f0e",
                 "^",
             ),
             (
-                "rsa_trapdoorless_non_mem_proof_create",
+                (
+                    "rsa_trapdoorless_mem_blind_proof_upd",
+                    "rsa_trapdoorless_mem_proof_create",
+                ),
                 "RSA trapdoorless",
                 "#1f77b4",
                 "o",
             ),
-            ("class_non_mem_proof_create", "Class group", "#d62728", "s"),
-            ("bilinear_non_mem_proof_create", "Bilinear", "#2ca02c", "D"),
+            (
+                ("class_mem_blind_proof_upd", "class_mem_proof_create"),
+                "Class group",
+                "#d62728",
+                "s",
+            ),
+            (
+                ("bilinear_mem_blind_proof_upd", "bilinear_mem_proof_create"),
+                "Bilinear",
+                "#2ca02c",
+                "D",
+            ),
+        ],
+    ),
+    (
+        "Blind Non-Membership Proof Update",
+        [
+            (
+                "rsa_trapdoored_non_mem_blind_proof_upd",
+                "RSA trapdoored",
+                "#ff7f0e",
+                "^",
+            ),
+            (
+                "rsa_trapdoorless_non_mem_blind_proof_upd",
+                "RSA trapdoorless",
+                "#1f77b4",
+                "o",
+            ),
+            ("class_non_mem_blind_proof_upd", "Class group", "#d62728", "s"),
+            ("bilinear_non_mem_blind_proof_upd", "Bilinear", "#2ca02c", "D"),
+        ],
+    ),
+    (
+        "Blind Non-Membership Update Overhead",
+        [
+            (
+                (
+                    "rsa_trapdoored_non_mem_blind_proof_upd",
+                    "rsa_trapdoored_non_mem_proof_create",
+                ),
+                "RSA trapdoored",
+                "#ff7f0e",
+                "^",
+            ),
+            (
+                (
+                    "rsa_trapdoorless_non_mem_blind_proof_upd",
+                    "rsa_trapdoorless_non_mem_proof_create",
+                ),
+                "RSA trapdoorless",
+                "#1f77b4",
+                "o",
+            ),
+            (
+                ("class_non_mem_blind_proof_upd", "class_non_mem_proof_create"),
+                "Class group",
+                "#d62728",
+                "s",
+            ),
+            (
+                (
+                    "bilinear_non_mem_blind_proof_upd",
+                    "bilinear_non_mem_proof_create",
+                ),
+                "Bilinear",
+                "#2ca02c",
+                "D",
+            ),
         ],
     ),
 ]
@@ -114,13 +154,27 @@ def load_series(bench_id: str):
     return rows
 
 
-def export_csv(bench_id: str, rows):
+def build_overhead_series(update_bench_id: str, create_bench_id: str):
+    upd_rows = dict(load_series(update_bench_id))
+    create_rows = dict(load_series(create_bench_id))
+    common_n = sorted(set(upd_rows) & set(create_rows))
+
+    rows = []
+    for n in common_n:
+        create_ms = create_rows[n]
+        if create_ms <= 0:
+            continue
+        rows.append((n, upd_rows[n] / create_ms))
+    return rows
+
+
+def export_csv(bench_id: str, rows, y_label: str = "Time (ms)"):
     OUT_CSV_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_CSV_DIR / f"{bench_id}.csv"
     with out_path.open("w", encoding="utf-8") as f:
-        f.write("Elements,Time (ms)\n")
-        for n, ms in rows:
-            f.write(f"{n},{ms}\n")
+        f.write(f"Elements,{y_label}\n")
+        for n, value in rows:
+            f.write(f"{n},{value}\n")
 
 
 def main():
@@ -129,9 +183,21 @@ def main():
 
     fig, axes = plt.subplots(1, 4, figsize=(24, 5))
 
-    for ax, (title, families) in zip(axes, FAMILIES):
-        for bench_id, label, color, marker in families:
-            rows = load_series(bench_id)
+    for panel_idx, (ax, (title, families)) in enumerate(zip(axes, FAMILIES)):
+        is_overhead_panel = panel_idx in (1, 3)
+
+        for bench_ref, label, color, marker in families:
+            if is_overhead_panel:
+                update_bench_id, create_bench_id = bench_ref
+                rows = build_overhead_series(update_bench_id, create_bench_id)
+                export_id = f"{update_bench_id}_over_create"
+                y_axis_label = "Overhead (x)"
+            else:
+                bench_id = bench_ref
+                rows = load_series(bench_id)
+                export_id = bench_id
+                y_axis_label = "Time (ms)"
+
             if not rows:
                 continue
 
@@ -150,14 +216,14 @@ def main():
                 label=label,
             )
 
-            export_csv(bench_id, rows)
-            print(f"Loaded {bench_id}: {len(rows)} points -> {x}")
+            export_csv(export_id, rows, y_axis_label)
+            print(f"Loaded {export_id}: {len(rows)} points -> {x}")
 
         ax.set_title(title)
         ax.set_xscale("log", base=2)
         ax.set_yscale("log", base=10)
-        ax.set_xlabel("Elements")
-        ax.set_ylabel("Time (ms)")
+        ax.set_xlabel("Number of inserted elements (k)")
+        ax.set_ylabel("Overhead (x)" if is_overhead_panel else "Time (ms)")
         ax.grid(True, which="both", linestyle="--", alpha=0.5)
         ax.legend()
 
