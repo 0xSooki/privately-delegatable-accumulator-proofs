@@ -2,7 +2,7 @@ name: Benchmark Trapdoored Vs Trapdoorless
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [main]
     paths:
       - benches/bench_rsa.rs

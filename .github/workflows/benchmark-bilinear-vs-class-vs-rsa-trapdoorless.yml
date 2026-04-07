@@ -2,7 +2,7 @@ name: Benchmark Bilinear vs Class vs RSA Trapdoorless
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [main]
     paths:
       - benches/bench_rsa.rs
