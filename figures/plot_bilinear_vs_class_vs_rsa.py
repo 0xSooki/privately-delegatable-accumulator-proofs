@@ -3,9 +3,31 @@ import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.backends import backend_pgf as mpl_backend_pgf
+from matplotlib.legend import Legend
+
+if not hasattr(mpl_backend_pgf, "common_texification"):
+    # Compatibility shim for tikzplotlib with newer Matplotlib versions.
+    mpl_backend_pgf.common_texification = mpl_backend_pgf._tex_escape
+
+if not hasattr(Legend, "legendHandles"):
+    # Compatibility shim for tikzplotlib with newer Matplotlib versions.
+    Legend.legendHandles = property(lambda self: self.legend_handles)
+
+if not hasattr(Legend, "_ncol"):
+    # Compatibility shim for tikzplotlib with newer Matplotlib versions.
+    Legend._ncol = property(lambda self: self._ncols)
+
+if not hasattr(np, "float_"):
+    # Compatibility shim for tikzplotlib with NumPy 2.x.
+    np.float_ = np.float64
+
+import tikzplotlib
 
 BASE_DIR = Path("target/criterion/bilinear_vs_class_vs_rsa_trapdoorless")
 OUT_IMG = Path("figures/images/bilinear_vs_class_vs_rsa_trapdoorless.png")
+OUT_TIKZ = Path("figures/images/bilinear_vs_class_vs_rsa_trapdoorless.tex")
 OUT_CSV_DIR = Path("data_for_latex")
 
 FAMILIES = [
@@ -232,6 +254,10 @@ def main():
     OUT_IMG.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(OUT_IMG, dpi=300)
     print(f"Saved plot: {OUT_IMG}")
+
+    OUT_TIKZ.parent.mkdir(parents=True, exist_ok=True)
+    tikzplotlib.save(OUT_TIKZ)
+    print(f"Saved TikZ: {OUT_TIKZ}")
 
 
 if __name__ == "__main__":
