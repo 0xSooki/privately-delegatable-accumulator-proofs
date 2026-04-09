@@ -1,11 +1,13 @@
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_ff::{Field, One, UniformRand, Zero};
+use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_poly_commit::kzg10::{Powers, KZG10};
 use ark_std::rand::Rng;
 use rand::thread_rng;
 use std::borrow::Cow;
 use std::collections::HashSet;
+
+use crate::nizk;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MembershipProof<E: Pairing> {
@@ -145,24 +147,98 @@ impl<E: Pairing> BilinearAccumulator<E> {
     pub fn blind_mem_proof_upd(
         &self,
         x: Vec<E::ScalarField>,
+        pi: &E::G1Affine,
+        acc_t: &E::G1Affine,
         crs_prime: Vec<E::G1Affine>,
-    ) -> E::G1Affine {
-        let q_star = x.into_iter().fold(
+    ) -> (
+        E::G1Affine,
+        nizk::PoeEqAndProof<E>,
+        DensePolynomial<E::ScalarField>,
+    )
+    where
+        E::ScalarField: PrimeField,
+    {
+        let q_star = x.iter().fold(
             DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]),
             |acc, xi| {
-                let factor = DensePolynomial::from_coefficients_vec(vec![
-                    -xi.to_owned(),
-                    E::ScalarField::one(),
-                ]);
+                let factor =
+                    DensePolynomial::from_coefficients_vec(vec![-*xi, E::ScalarField::one()]);
                 &acc * &factor
             },
         );
-        let pi_prime = self.kzg_com(&Some(crs_prime), &q_star);
-        pi_prime
+
+        let acc_t_prime = self.acc;
+
+        let mut s_t_poly = self.poly.clone();
+        for xi in &x {
+            let (q, r) = Self::syn_div(&s_t_poly, xi);
+            debug_assert!(r.is_zero(), "added element must divide updated polynomial");
+            s_t_poly = q;
+        }
+
+        let pi_prime = self.kzg_com(&Some(crs_prime.clone()), &q_star);
+
+        let required_len = q_star.coeffs().len();
+
+        let mut powers_acc_t = Vec::with_capacity(required_len);
+        for i in 0..required_len {
+            let mut coeffs = vec![E::ScalarField::zero(); i];
+            coeffs.extend(s_t_poly.coeffs().iter().copied());
+            let shifted = DensePolynomial::from_coefficients_vec(coeffs);
+            powers_acc_t.push(self.kzg_com(&None, &shifted));
+        }
+
+        debug_assert_eq!(powers_acc_t.first(), Some(acc_t));
+
+        let powers_for_acc_t = Powers::<E> {
+            powers_of_g: Cow::Owned(powers_acc_t),
+            powers_of_gamma_g: Cow::Owned(vec![]),
+        };
+
+        let powers_for_pi = Powers::<E> {
+            powers_of_g: Cow::Owned(crs_prime.into_iter().take(required_len).collect()),
+            powers_of_gamma_g: Cow::Owned(vec![]),
+        };
+
+        let poe_eq_proof = nizk::BilinearNIZK::prove_poe_eq::<E>(
+            &powers_for_acc_t,
+            &powers_for_pi,
+            acc_t,
+            &acc_t_prime,
+            pi,
+            &pi_prime,
+            &q_star,
+        )
+        .expect("PoEEq proof creation failed");
+
+        (pi_prime, poe_eq_proof, q_star)
     }
 
-    pub fn ver_blind_mem_proof_upd() {
-        todo!()
+    pub fn ver_blind_mem_proof_upd(
+        &self,
+        pi: &E::G1Affine,
+        pi_prime: &E::G1Affine,
+        acc_t: &E::G1Affine,
+        delta: &DensePolynomial<E::ScalarField>,
+        poe_eq_proof: &nizk::PoeEqAndProof<E>,
+    ) -> bool
+    where
+        E::ScalarField: PrimeField,
+    {
+        let acc_t_prime = &self.acc;
+        let g2 = &self.crs_g2[0];
+        let g2_s = &self.crs_g2[1];
+
+        nizk::BilinearNIZK::verify_poe_eq::<E>(
+            acc_t,
+            acc_t_prime,
+            pi,
+            pi_prime,
+            g2,
+            g2_s,
+            delta,
+            poe_eq_proof,
+        )
     }
 
     pub fn unblind_mem_proof(pi_prime: &E::G1Affine, r: &E::ScalarField) -> E::G1Affine {
@@ -220,9 +296,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         (q_prime, y_prime_t_prime)
     }
 
-    pub fn ver_blind_non_mem_proof_upd() {
-        todo!()
-    }
+    pub fn ver_blind_non_mem_proof_upd() {}
 
     pub fn unblind_non_mem_proof(
         &self,
@@ -372,6 +446,7 @@ mod tests {
         let _proof = acc
             .mem_proof_create(element)
             .expect("Membership proof creation failed");
+        let acc_t = acc.value();
 
         let s = initial_elements.iter().fold(
             DensePolynomial::from_coefficients_vec(vec![ark_bls12_381::Fr::one()]),
@@ -390,12 +465,19 @@ mod tests {
         let (crs_prime, r) = acc
             .blind_mem_proof(&mut test_rng(), &q, num_added)
             .expect("Blind membership proof creation failed");
+        let pi_blinded = crs_prime
+            .first()
+            .copied()
+            .expect("blinded CRS must include base term");
 
         for e in &added_elements {
             acc.add(e);
         }
 
-        let pi_prime = acc.blind_mem_proof_upd(added_elements, crs_prime);
+        let (pi_prime, poe_eq_proof, delta) =
+            acc.blind_mem_proof_upd(added_elements, &pi_blinded, &acc_t, crs_prime);
+
+        assert!(acc.ver_blind_mem_proof_upd(&pi_blinded, &pi_prime, &acc_t, &delta, &poe_eq_proof,));
 
         let pi = BilinearAccumulator::<Bls12_381>::unblind_mem_proof(&pi_prime, &r);
         let updated_proof = MembershipProof { pi };

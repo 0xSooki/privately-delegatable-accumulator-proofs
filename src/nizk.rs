@@ -1,6 +1,16 @@
 use crate::traits::Group;
+#[cfg(feature = "bilinear")]
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+#[cfg(feature = "bilinear")]
+use ark_ff::{BigInteger, One, PrimeField, Zero};
+#[cfg(feature = "bilinear")]
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
+#[cfg(feature = "bilinear")]
+use ark_poly_commit::kzg10::{Powers, KZG10};
 use rand::thread_rng;
 use rand::RngCore;
+#[cfg(feature = "bilinear")]
+use sha2::{Digest, Sha256};
 
 type Proof<G> = (
     <G as Group>::Element,
@@ -86,13 +96,161 @@ impl<'a, G: Group> NIZK<'a, G> {
 
         lhs_1 == rhs_1 && lhs_2 == rhs_2
     }
+}
 
-    pub fn prove_poe() {
-        unimplemented!("implement DLEq...")
+#[cfg(feature = "bilinear")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PoeStarProof<E: Pairing> {
+    pub q: E::G1Affine,
+}
+
+#[cfg(feature = "bilinear")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PoeEqAndProof<E: Pairing> {
+    pub q_u: E::G1Affine,
+    pub q_v: E::G1Affine,
+}
+
+#[cfg(feature = "bilinear")]
+pub struct BilinearNIZK;
+
+#[cfg(feature = "bilinear")]
+impl BilinearNIZK {
+    fn fs<E: Pairing>(
+        g: &E::G1Affine,
+        u: &E::G1Affine,
+        h: &E::G1Affine,
+        v: &E::G1Affine,
+        poly: &DensePolynomial<E::ScalarField>,
+    ) -> E::ScalarField
+    where
+        E::ScalarField: PrimeField,
+    {
+        let mut hasher = Sha256::new();
+        hasher.update(b"poe_eq_and_sigma_g1");
+        hasher.update(format!("{:?}", g).as_bytes());
+        hasher.update(format!("{:?}", u).as_bytes());
+        hasher.update(format!("{:?}", h).as_bytes());
+        hasher.update(format!("{:?}", v).as_bytes());
+
+        for coeff in poly.coeffs() {
+            let coeff_bytes = coeff.into_bigint().to_bytes_le();
+            hasher.update((coeff_bytes.len() as u64).to_le_bytes());
+            hasher.update(&coeff_bytes);
+        }
+
+        let digest = hasher.finalize();
+        let mut alpha = E::ScalarField::from_le_bytes_mod_order(&digest);
+        if alpha.is_zero() {
+            alpha = E::ScalarField::one();
+        }
+        alpha
     }
 
-    pub fn verify_poe() {
-        unimplemented!("implement DLEq...")
+    fn syn_div_by_x_minus_c<E: Pairing>(
+        poly: &DensePolynomial<E::ScalarField>,
+        c: &E::ScalarField,
+    ) -> (DensePolynomial<E::ScalarField>, E::ScalarField) {
+        let coeffs = poly.coeffs();
+        if coeffs.len() <= 1 {
+            let r = coeffs.first().copied().unwrap_or_else(E::ScalarField::zero);
+            return (DensePolynomial::zero(), r);
+        }
+
+        let n = coeffs.len();
+        let mut q = vec![E::ScalarField::zero(); n - 1];
+        q[n - 2] = coeffs[n - 1];
+        for i in (0..n - 2).rev() {
+            q[i] = coeffs[i + 1] + *c * q[i + 1];
+        }
+
+        let r = coeffs[0] + *c * q[0];
+        (DensePolynomial::from_coefficients_vec(q), r)
+    }
+
+    fn syn_div_by_x_plus_alpha<E: Pairing>(
+        poly: &DensePolynomial<E::ScalarField>,
+        alpha: &E::ScalarField,
+    ) -> (DensePolynomial<E::ScalarField>, E::ScalarField) {
+        let c = -*alpha;
+        Self::syn_div_by_x_minus_c::<E>(poly, &c)
+    }
+
+    pub fn com<E: Pairing>(
+        powers: &Powers<E>,
+        poly: &DensePolynomial<E::ScalarField>,
+    ) -> Option<E::G1Affine> {
+        let (commitment, _) =
+            KZG10::<E, DensePolynomial<E::ScalarField>>::commit(powers, poly, None, None).ok()?;
+        Some(commitment.0)
+    }
+
+    fn verify_single_poe<E: Pairing>(
+        base: &E::G1Affine,
+        target: &E::G1Affine,
+        q: &E::G1Affine,
+        beta: &E::ScalarField,
+        g2: &E::G2Affine,
+        g2_s_plus_alpha: &E::G2Affine,
+    ) -> bool {
+        let base_beta = (base.into_group() * *beta).into_affine();
+        let lhs = E::multi_pairing(
+            [q.clone(), base_beta],
+            [g2_s_plus_alpha.clone(), g2.clone()],
+        );
+        let rhs = E::pairing(target.clone(), g2.clone());
+        lhs == rhs
+    }
+
+    pub fn prove_poe_eq<E: Pairing>(
+        powers_for_g: &Powers<E>,
+        powers_for_h: &Powers<E>,
+        g: &E::G1Affine,
+        u: &E::G1Affine,
+        h: &E::G1Affine,
+        v: &E::G1Affine,
+        poly: &DensePolynomial<E::ScalarField>,
+    ) -> Option<PoeEqAndProof<E>>
+    where
+        E::ScalarField: PrimeField,
+    {
+        if powers_for_g.powers_of_g.first() != Some(g)
+            || powers_for_h.powers_of_g.first() != Some(h)
+        {
+            return None;
+        }
+
+        let alpha = Self::fs::<E>(g, u, h, v, poly);
+        let (h_poly, _beta) = Self::syn_div_by_x_plus_alpha::<E>(poly, &alpha);
+
+        let q_u = Self::com::<E>(powers_for_g, &h_poly)?;
+        let q_v = Self::com::<E>(powers_for_h, &h_poly)?;
+
+        Some(PoeEqAndProof { q_u, q_v })
+    }
+
+    pub fn verify_poe_eq<E: Pairing>(
+        g: &E::G1Affine,
+        u: &E::G1Affine,
+        h: &E::G1Affine,
+        v: &E::G1Affine,
+        g2: &E::G2Affine,
+        g2_s: &E::G2Affine,
+        poly: &DensePolynomial<E::ScalarField>,
+        proof: &PoeEqAndProof<E>,
+    ) -> bool
+    where
+        E::ScalarField: PrimeField,
+    {
+        let alpha = Self::fs::<E>(g, u, h, v, poly);
+        let (_h_poly, beta) = Self::syn_div_by_x_plus_alpha::<E>(poly, &alpha);
+
+        let g2_s_plus_alpha = (g2_s.into_group() + g2.into_group() * alpha).into_affine();
+
+        let left = Self::verify_single_poe::<E>(g, u, &proof.q_u, &beta, g2, &g2_s_plus_alpha);
+        let right = Self::verify_single_poe::<E>(h, v, &proof.q_v, &beta, g2, &g2_s_plus_alpha);
+
+        left && right
     }
 }
 
@@ -158,5 +316,184 @@ mod tests {
         let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
 
         assert!(nizk.verify_dleq(&g, &u, &h, &v, &proof));
+    }
+}
+
+#[cfg(all(test, feature = "bilinear"))]
+mod bilinear_poe_tests {
+    use super::*;
+    use ark_bls12_381::{Bls12_381, Fr};
+    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
+    use ark_poly_commit::kzg10::Powers;
+    use std::borrow::Cow;
+
+    fn build_powers(
+        degree: usize,
+    ) -> (
+        Powers<'static, Bls12_381>,
+        <Bls12_381 as Pairing>::G2Affine,
+        <Bls12_381 as Pairing>::G2Affine,
+    ) {
+        let mut rng = ark_std::test_rng();
+        let pp = KZG10::<Bls12_381, DensePolynomial<Fr>>::setup(degree + 1, false, &mut rng)
+            .expect("KZG setup failed");
+
+        let powers_of_g: Vec<<Bls12_381 as Pairing>::G1Affine> =
+            pp.powers_of_g.iter().take(degree + 1).copied().collect();
+
+        let powers = Powers {
+            powers_of_g: Cow::Owned(powers_of_g),
+            powers_of_gamma_g: Cow::Owned(vec![]),
+        };
+
+        (powers, pp.h, pp.beta_h)
+    }
+
+    fn scale_powers_for_base(
+        base_powers: &Powers<'static, Bls12_381>,
+        base_scalar: Fr,
+    ) -> Powers<'static, Bls12_381> {
+        let scaled_powers_of_g: Vec<<Bls12_381 as Pairing>::G1Affine> = base_powers
+            .powers_of_g
+            .iter()
+            .map(|g_pow| (g_pow.into_group() * base_scalar).into_affine())
+            .collect();
+
+        Powers {
+            powers_of_g: Cow::Owned(scaled_powers_of_g),
+            powers_of_gamma_g: Cow::Owned(vec![]),
+        }
+    }
+
+    #[test]
+    fn poe_eq_and_sigma_verifies_valid_proof() {
+        let degree = 8;
+
+        let (powers_g, g2, g2_s) = build_powers(degree);
+        let powers_h = scale_powers_for_base(&powers_g, Fr::from(13u64));
+
+        let g = powers_g
+            .powers_of_g
+            .first()
+            .copied()
+            .expect("CRS must include base element");
+        let h = powers_h
+            .powers_of_g
+            .first()
+            .copied()
+            .expect("CRS must include base element");
+
+        let poly = DensePolynomial::from_coefficients_vec(vec![
+            Fr::from(5u64),
+            Fr::from(3u64),
+            Fr::from(11u64),
+        ]);
+
+        let u = BilinearNIZK::com::<Bls12_381>(&powers_g, &poly)
+            .expect("CRS length must cover polynomial degree");
+        let v = BilinearNIZK::com::<Bls12_381>(&powers_h, &poly)
+            .expect("CRS length must cover polynomial degree");
+
+        let proof =
+            BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
+                .expect("CRS vectors must be consistent and long enough");
+
+        assert!(BilinearNIZK::verify_poe_eq::<Bls12_381>(
+            &g, &u, &h, &v, &g2, &g2_s, &poly, &proof,
+        ));
+    }
+
+    #[test]
+    fn poe_eq_and_sigma_rejects_tampered_component() {
+        let degree = 8;
+
+        let (powers_g, g2, g2_s) = build_powers(degree);
+        let powers_h = scale_powers_for_base(&powers_g, Fr::from(13u64));
+
+        let g = powers_g
+            .powers_of_g
+            .first()
+            .copied()
+            .expect("CRS must include base element");
+        let h = powers_h
+            .powers_of_g
+            .first()
+            .copied()
+            .expect("CRS must include base element");
+
+        let poly = DensePolynomial::from_coefficients_vec(vec![
+            Fr::from(5u64),
+            Fr::from(3u64),
+            Fr::from(11u64),
+        ]);
+
+        let u = BilinearNIZK::com::<Bls12_381>(&powers_g, &poly)
+            .expect("CRS length must cover polynomial degree");
+        let v = BilinearNIZK::com::<Bls12_381>(&powers_h, &poly)
+            .expect("CRS length must cover polynomial degree");
+
+        let proof =
+            BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
+                .expect("CRS vectors must be consistent and long enough");
+
+        let bad_q_v = (proof.q_v.into_group() + g.into_group()).into_affine();
+        let bad_proof = PoeEqAndProof::<Bls12_381> {
+            q_u: proof.q_u,
+            q_v: bad_q_v,
+        };
+
+        assert!(!BilinearNIZK::verify_poe_eq::<Bls12_381>(
+            &g, &u, &h, &v, &g2, &g2_s, &poly, &bad_proof,
+        ));
+    }
+
+    #[test]
+    fn poe_eq_and_sigma_rejects_wrong_statement() {
+        let degree = 8;
+
+        let (powers_g, g2, g2_s) = build_powers(degree);
+        let powers_h = scale_powers_for_base(&powers_g, Fr::from(13u64));
+
+        let g = powers_g
+            .powers_of_g
+            .first()
+            .copied()
+            .expect("CRS must include base element");
+        let h = powers_h
+            .powers_of_g
+            .first()
+            .copied()
+            .expect("CRS must include base element");
+
+        let poly = DensePolynomial::from_coefficients_vec(vec![
+            Fr::from(5u64),
+            Fr::from(3u64),
+            Fr::from(11u64),
+        ]);
+        let wrong_poly = DensePolynomial::from_coefficients_vec(vec![
+            Fr::from(5u64),
+            Fr::from(9u64),
+            Fr::from(11u64),
+        ]);
+
+        let u = BilinearNIZK::com::<Bls12_381>(&powers_g, &poly)
+            .expect("CRS length must cover polynomial degree");
+        let v = BilinearNIZK::com::<Bls12_381>(&powers_h, &poly)
+            .expect("CRS length must cover polynomial degree");
+
+        let proof =
+            BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
+                .expect("CRS vectors must be consistent and long enough");
+
+        assert!(!BilinearNIZK::verify_poe_eq::<Bls12_381>(
+            &g,
+            &u,
+            &h,
+            &v,
+            &g2,
+            &g2_s,
+            &wrong_poly,
+            &proof,
+        ));
     }
 }
