@@ -35,3 +35,7 @@ hmac = "0.11"
 [[bench]]
 name = "bench_rsa"
 harness = false
+
+[[bench]]
+name = "bench_bilinear_vs_class_vs_rsa"
+harness = false
