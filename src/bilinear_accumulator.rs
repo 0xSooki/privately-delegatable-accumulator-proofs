@@ -150,6 +150,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         pi: &E::G1Affine,
         acc_t: &E::G1Affine,
         crs_prime: Vec<E::G1Affine>,
+        q_star: DensePolynomial<E::ScalarField>,
     ) -> (
         E::G1Affine,
         nizk::PoeEqAndProof<E>,
@@ -158,15 +159,6 @@ impl<E: Pairing> BilinearAccumulator<E> {
     where
         E::ScalarField: PrimeField,
     {
-        let q_star = x.iter().fold(
-            DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]),
-            |acc, xi| {
-                let factor =
-                    DensePolynomial::from_coefficients_vec(vec![-*xi, E::ScalarField::one()]);
-                &acc * &factor
-            },
-        );
-
         let acc_t_prime = self.acc;
 
         let mut s_t_poly = self.poly.clone();
@@ -542,8 +534,17 @@ mod tests {
             acc.add(e);
         }
 
+        let q_star = added_elements.iter().fold(
+            DensePolynomial::from_coefficients_vec(vec![ark_bls12_381::Fr::one()]),
+            |acc, xi| {
+                let factor =
+                    DensePolynomial::from_coefficients_vec(vec![-*xi, ark_bls12_381::Fr::one()]);
+                &acc * &factor
+            },
+        );
+
         let (pi_prime, poe_eq_proof, delta) =
-            acc.blind_mem_proof_upd(added_elements, &pi_blinded, &acc_t, crs_prime);
+            acc.blind_mem_proof_upd(added_elements, &pi_blinded, &acc_t, crs_prime, q_star);
 
         assert!(acc.ver_blind_mem_proof_upd(&pi_blinded, &pi_prime, &acc_t, &delta, &poe_eq_proof,));
 

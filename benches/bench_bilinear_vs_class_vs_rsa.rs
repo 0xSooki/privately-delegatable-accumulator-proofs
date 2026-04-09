@@ -318,17 +318,28 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                                 .copied()
                                 .expect("blinded CRS must include base term");
                             let acc_t = acc.value();
+                            let q_star = elements_in.iter().fold(
+                                DensePolynomial::from_coefficients_vec(vec![Fr::from(1u64)]),
+                                |acc_poly, xi| {
+                                    let factor = DensePolynomial::from_coefficients_vec(vec![
+                                        -*xi,
+                                        Fr::from(1u64),
+                                    ]);
+                                    &acc_poly * &factor
+                                },
+                            );
                             for elem in &elements_in {
                                 acc.add(elem);
                             }
-                            (acc, elements_in, pi_blinded, acc_t, crs_prime)
+                            (acc, elements_in, pi_blinded, acc_t, crs_prime, q_star)
                         },
-                        |(acc, elements_in, pi_blinded, acc_t, crs_prime)| {
+                        |(acc, elements_in, pi_blinded, acc_t, crs_prime, q_star)| {
                             let _ = black_box(acc.blind_mem_proof_upd(
                                 elements_in,
                                 &pi_blinded,
                                 &acc_t,
                                 crs_prime,
+                                q_star,
                             ));
                         },
                         BatchSize::SmallInput,
