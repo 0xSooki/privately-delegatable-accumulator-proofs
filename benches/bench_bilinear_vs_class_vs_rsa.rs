@@ -193,9 +193,14 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                             for sn_plus_one in bilinear_update_elements.iter().take(n) {
                                 let (blinded_non_mem_proof, r) =
                                     acc.blind_non_mem_proof(&proof, non_element_bilinear);
+                                let acc_t = acc.value();
                                 acc.add(sn_plus_one);
-                                let blinded_updated_proof = acc
-                                    .blind_non_mem_proof_upd(&blinded_non_mem_proof, sn_plus_one);
+                                let (blinded_updated_proof, _poe_eq_proof, _delta) = acc
+                                    .blind_non_mem_proof_upd(
+                                        &blinded_non_mem_proof,
+                                        &acc_t,
+                                        sn_plus_one,
+                                    );
                                 proof = acc.unblind_non_mem_proof(
                                     &blinded_updated_proof,
                                     &(r, blinded_non_mem_proof.1),
@@ -308,13 +313,23 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                             let (crs_prime, _r) = acc
                                 .blind_mem_proof(&mut rng, &bilinear_q, elements_in.len())
                                 .expect("bilinear blind membership proof");
+                            let pi_blinded = crs_prime
+                                .first()
+                                .copied()
+                                .expect("blinded CRS must include base term");
+                            let acc_t = acc.value();
                             for elem in &elements_in {
                                 acc.add(elem);
                             }
-                            (acc, elements_in, crs_prime)
+                            (acc, elements_in, pi_blinded, acc_t, crs_prime)
                         },
-                        |(acc, elements_in, crs_prime)| {
-                            let _ = black_box(acc.blind_mem_proof_upd(elements_in, crs_prime));
+                        |(acc, elements_in, pi_blinded, acc_t, crs_prime)| {
+                            let _ = black_box(acc.blind_mem_proof_upd(
+                                elements_in,
+                                &pi_blinded,
+                                &acc_t,
+                                crs_prime,
+                            ));
                         },
                         BatchSize::SmallInput,
                     );
