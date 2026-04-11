@@ -146,11 +146,11 @@ impl<E: Pairing> BilinearAccumulator<E> {
 
     pub fn blind_mem_proof_upd(
         &self,
-        x: Vec<E::ScalarField>,
         pi: &E::G1Affine,
         acc_t: &E::G1Affine,
         crs_prime: Vec<E::G1Affine>,
         q_star: DensePolynomial<E::ScalarField>,
+        s_t_poly: DensePolynomial<E::ScalarField>,
     ) -> (
         E::G1Affine,
         nizk::PoeEqAndProof<E>,
@@ -160,13 +160,6 @@ impl<E: Pairing> BilinearAccumulator<E> {
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = self.acc;
-
-        let mut s_t_poly = self.poly.clone();
-        for xi in &x {
-            let (q, r) = Self::syn_div(&s_t_poly, xi);
-            debug_assert!(r.is_zero(), "added element must divide updated polynomial");
-            s_t_poly = q;
-        }
 
         let pi_prime = self.kzg_com(&Some(crs_prime.clone()), &q_star);
 
@@ -544,7 +537,7 @@ mod tests {
         );
 
         let (pi_prime, poe_eq_proof, delta) =
-            acc.blind_mem_proof_upd(added_elements, &pi_blinded, &acc_t, crs_prime, q_star);
+            acc.blind_mem_proof_upd(&pi_blinded, &acc_t, crs_prime, q_star, s);
 
         assert!(acc.ver_blind_mem_proof_upd(&pi_blinded, &pi_prime, &acc_t, &delta, &poe_eq_proof,));
 

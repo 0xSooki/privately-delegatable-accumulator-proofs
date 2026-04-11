@@ -107,8 +107,9 @@ pub struct PoeStarProof<E: Pairing> {
 #[cfg(feature = "bilinear")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct PoeEqAndProof<E: Pairing> {
-    pub q_u: E::G1Affine,
-    pub q_v: E::G1Affine,
+    pub left: PoeStarProof<E>,
+    pub right: PoeStarProof<E>,
+    pub beta: E::ScalarField,
 }
 
 #[cfg(feature = "bilinear")]
@@ -184,21 +185,25 @@ impl BilinearNIZK {
             KZG10::<E, DensePolynomial<E::ScalarField>>::commit(powers, poly, None, None).ok()?;
         Some(commitment.0)
     }
+    fn prove_single_poe<E: Pairing>(
+        powers: &Powers<E>,
+        h_poly: &DensePolynomial<E::ScalarField>,
+    ) -> Option<PoeStarProof<E>> {
+        let q = Self::com::<E>(powers, h_poly)?;
+        Some(PoeStarProof { q })
+    }
 
     fn verify_single_poe<E: Pairing>(
         base: &E::G1Affine,
         target: &E::G1Affine,
-        q: &E::G1Affine,
+        proof: &PoeStarProof<E>,
         beta: &E::ScalarField,
         g2: &E::G2Affine,
         g2_s_plus_alpha: &E::G2Affine,
     ) -> bool {
         let base_beta = (base.into_group() * *beta).into_affine();
-        let lhs = E::multi_pairing(
-            [q.clone(), base_beta],
-            [g2_s_plus_alpha.clone(), g2.clone()],
-        );
-        let rhs = E::pairing(target.clone(), g2.clone());
+        let lhs = E::multi_pairing([proof.q, base_beta], [*g2_s_plus_alpha, *g2]);
+        let rhs = E::pairing(*target, *g2);
         lhs == rhs
     }
 
@@ -221,12 +226,12 @@ impl BilinearNIZK {
         }
 
         let alpha = Self::fs::<E>(g, u, h, v, poly);
-        let (h_poly, _beta) = Self::syn_div_by_x_plus_alpha::<E>(poly, &alpha);
+        let (h_poly, beta) = Self::syn_div_by_x_plus_alpha::<E>(poly, &alpha);
 
-        let q_u = Self::com::<E>(powers_for_g, &h_poly)?;
-        let q_v = Self::com::<E>(powers_for_h, &h_poly)?;
+        let left = Self::prove_single_poe::<E>(powers_for_g, &h_poly)?;
+        let right = Self::prove_single_poe::<E>(powers_for_h, &h_poly)?;
 
-        Some(PoeEqAndProof { q_u, q_v })
+        Some(PoeEqAndProof { left, right, beta })
     }
 
     pub fn verify_poe_eq<E: Pairing>(
@@ -243,14 +248,14 @@ impl BilinearNIZK {
         E::ScalarField: PrimeField,
     {
         let alpha = Self::fs::<E>(g, u, h, v, poly);
-        let (_h_poly, beta) = Self::syn_div_by_x_plus_alpha::<E>(poly, &alpha);
+        let beta = proof.beta;
 
         let g2_s_plus_alpha = (g2_s.into_group() + g2.into_group() * alpha).into_affine();
 
-        let left = Self::verify_single_poe::<E>(g, u, &proof.q_u, &beta, g2, &g2_s_plus_alpha);
-        let right = Self::verify_single_poe::<E>(h, v, &proof.q_v, &beta, g2, &g2_s_plus_alpha);
+        let eq_gu = Self::verify_single_poe::<E>(g, u, &proof.left, &beta, g2, &g2_s_plus_alpha);
+        let eq_hv = Self::verify_single_poe::<E>(h, v, &proof.right, &beta, g2, &g2_s_plus_alpha);
 
-        left && right
+        eq_gu && eq_hv
     }
 }
 
@@ -323,7 +328,7 @@ mod tests {
 mod bilinear_poe_tests {
     use super::*;
     use ark_bls12_381::{Bls12_381, Fr};
-    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, Group};
+    use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
     use ark_poly_commit::kzg10::Powers;
     use std::borrow::Cow;
 
@@ -436,10 +441,11 @@ mod bilinear_poe_tests {
             BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
                 .expect("CRS vectors must be consistent and long enough");
 
-        let bad_q_v = (proof.q_v.into_group() + g.into_group()).into_affine();
+        let bad_q_v = (proof.right.q.into_group() + g.into_group()).into_affine();
         let bad_proof = PoeEqAndProof::<Bls12_381> {
-            q_u: proof.q_u,
-            q_v: bad_q_v,
+            left: proof.left,
+            right: PoeStarProof { q: bad_q_v },
+            beta: proof.beta,
         };
 
         assert!(!BilinearNIZK::verify_poe_eq::<Bls12_381>(
