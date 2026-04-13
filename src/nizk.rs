@@ -185,37 +185,23 @@ impl BilinearNIZK {
             KZG10::<E, DensePolynomial<E::ScalarField>>::commit(powers, poly, None, None).ok()?;
         Some(commitment.0)
     }
-    fn prove_single_poe<E: Pairing>(
-        powers: &Powers<E>,
-        h_poly: &DensePolynomial<E::ScalarField>,
-    ) -> Option<PoeStarProof<E>> {
-        let q = Self::com::<E>(powers, h_poly)?;
-        Some(PoeStarProof { q })
-    }
-
-    fn verify_single_poe<E: Pairing>(
-        base: &E::G1Affine,
-        target: &E::G1Affine,
-        proof: &PoeStarProof<E>,
-        beta: &E::ScalarField,
-        g2: &E::G2Affine,
-        g2_s_plus_alpha: &E::G2Affine,
-    ) -> bool {
-        let base_beta = (base.into_group() * *beta).into_affine();
-        let lhs = E::multi_pairing([proof.q, base_beta], [*g2_s_plus_alpha, *g2]);
-        let rhs = E::pairing(*target, *g2);
-        lhs == rhs
-    }
 
     pub fn prove_poe_eq<E: Pairing>(
         powers_for_g: &Powers<E>,
         powers_for_h: &Powers<E>,
+        powers_for_g1: &Powers<E>,
         g: &E::G1Affine,
         u: &E::G1Affine,
         h: &E::G1Affine,
         v: &E::G1Affine,
         poly: &DensePolynomial<E::ScalarField>,
-    ) -> Option<PoeEqAndProof<E>>
+    ) -> Option<(
+        E::G1Affine,
+        E::G1Affine,
+        E::G1Affine,
+        E::ScalarField,
+        E::G1Affine,
+    )>
     where
         E::ScalarField: PrimeField,
     {
@@ -228,13 +214,16 @@ impl BilinearNIZK {
         let alpha = Self::fs::<E>(g, u, h, v, poly);
         let (h_poly, beta) = Self::syn_div_by_x_plus_alpha::<E>(poly, &alpha);
 
-        let left = Self::prove_single_poe::<E>(powers_for_g, &h_poly)?;
-        let right = Self::prove_single_poe::<E>(powers_for_h, &h_poly)?;
+        let qg = Self::com::<E>(powers_for_g, &h_poly)?;
+        let qh = Self::com::<E>(powers_for_h, &h_poly)?;
+        let gwidehat = Self::com::<E>(powers_for_g1, &h_poly)?;
+        let gwidetilde = Self::com::<E>(powers_for_g1, poly)?;
 
-        Some(PoeEqAndProof { left, right, beta })
+        Some((qg, qh, gwidehat, beta, gwidetilde))
     }
 
     pub fn verify_poe_eq<E: Pairing>(
+        g1: &E::G1Affine,
         g: &E::G1Affine,
         u: &E::G1Affine,
         h: &E::G1Affine,
@@ -242,20 +231,42 @@ impl BilinearNIZK {
         g2: &E::G2Affine,
         g2_s: &E::G2Affine,
         poly: &DensePolynomial<E::ScalarField>,
-        proof: &PoeEqAndProof<E>,
+        proof: &(
+            E::G1Affine,
+            E::G1Affine,
+            E::G1Affine,
+            E::ScalarField,
+            E::G1Affine,
+        ),
     ) -> bool
     where
         E::ScalarField: PrimeField,
     {
         let alpha = Self::fs::<E>(g, u, h, v, poly);
-        let beta = proof.beta;
+        let beta = proof.3;
 
         let g2_s_plus_alpha = (g2_s.into_group() + g2.into_group() * alpha).into_affine();
 
-        let eq_gu = Self::verify_single_poe::<E>(g, u, &proof.left, &beta, g2, &g2_s_plus_alpha);
-        let eq_hv = Self::verify_single_poe::<E>(h, v, &proof.right, &beta, g2, &g2_s_plus_alpha);
+        let pairing1 = E::multi_pairing(
+            [proof.0, (g.into_group() * beta).into_affine()],
+            [g2_s_plus_alpha, *g2],
+        );
 
-        eq_gu && eq_hv
+        let pairing2 = E::multi_pairing(
+            [proof.1, (h.into_group() * beta).into_affine()],
+            [g2_s_plus_alpha, *g2],
+        );
+
+        let pairing5 = E::multi_pairing(
+            [proof.2, (g1.into_group() * beta).into_affine()],
+            [g2_s_plus_alpha, *g2],
+        );
+
+        let pairing_u = E::pairing(*u, *g2);
+        let pairing_v = E::pairing(*v, *g2);
+        let pairing_gwidetilde = E::pairing(proof.4, *g2);
+
+        pairing1 == pairing_u && pairing2 == pairing_v && pairing5 == pairing_gwidetilde
     }
 }
 
@@ -374,8 +385,9 @@ mod bilinear_poe_tests {
     fn poe_eq_and_sigma_verifies_valid_proof() {
         let degree = 8;
 
-        let (powers_g, g2, g2_s) = build_powers(degree);
-        let powers_h = scale_powers_for_base(&powers_g, Fr::from(13u64));
+        let (powers_g1, g2, g2_s) = build_powers(degree);
+        let powers_g = scale_powers_for_base(&powers_g1, Fr::from(7u64));
+        let powers_h = scale_powers_for_base(&powers_g1, Fr::from(13u64));
 
         let g = powers_g
             .powers_of_g
@@ -399,12 +411,21 @@ mod bilinear_poe_tests {
         let v = BilinearNIZK::com::<Bls12_381>(&powers_h, &poly)
             .expect("CRS length must cover polynomial degree");
 
-        let proof =
-            BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
-                .expect("CRS vectors must be consistent and long enough");
+        let proof = BilinearNIZK::prove_poe_eq::<Bls12_381>(
+            &powers_g, &powers_h, &powers_g1, &g, &u, &h, &v, &poly,
+        )
+        .expect("CRS vectors must be consistent and long enough");
 
         assert!(BilinearNIZK::verify_poe_eq::<Bls12_381>(
-            &g, &u, &h, &v, &g2, &g2_s, &poly, &proof,
+            &powers_g1.powers_of_g[0],
+            &g,
+            &u,
+            &h,
+            &v,
+            &g2,
+            &g2_s,
+            &poly,
+            &proof,
         ));
     }
 
@@ -412,8 +433,9 @@ mod bilinear_poe_tests {
     fn poe_eq_and_sigma_rejects_tampered_component() {
         let degree = 8;
 
-        let (powers_g, g2, g2_s) = build_powers(degree);
-        let powers_h = scale_powers_for_base(&powers_g, Fr::from(13u64));
+        let (powers_g1, g2, g2_s) = build_powers(degree);
+        let powers_g = scale_powers_for_base(&powers_g1, Fr::from(7u64));
+        let powers_h = scale_powers_for_base(&powers_g1, Fr::from(13u64));
 
         let g = powers_g
             .powers_of_g
@@ -437,19 +459,24 @@ mod bilinear_poe_tests {
         let v = BilinearNIZK::com::<Bls12_381>(&powers_h, &poly)
             .expect("CRS length must cover polynomial degree");
 
-        let proof =
-            BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
-                .expect("CRS vectors must be consistent and long enough");
+        let proof = BilinearNIZK::prove_poe_eq::<Bls12_381>(
+            &powers_g, &powers_h, &powers_g1, &g, &u, &h, &v, &poly,
+        )
+        .expect("CRS vectors must be consistent and long enough");
 
-        let bad_q_v = (proof.right.q.into_group() + g.into_group()).into_affine();
-        let bad_proof = PoeEqAndProof::<Bls12_381> {
-            left: proof.left,
-            right: PoeStarProof { q: bad_q_v },
-            beta: proof.beta,
-        };
+        let bad_q_v = (proof.1.into_group() + g.into_group()).into_affine();
+        let bad_proof = (proof.0, bad_q_v, proof.2, proof.3, proof.4);
 
         assert!(!BilinearNIZK::verify_poe_eq::<Bls12_381>(
-            &g, &u, &h, &v, &g2, &g2_s, &poly, &bad_proof,
+            &powers_g1.powers_of_g[0],
+            &g,
+            &u,
+            &h,
+            &v,
+            &g2,
+            &g2_s,
+            &poly,
+            &bad_proof,
         ));
     }
 
@@ -457,8 +484,9 @@ mod bilinear_poe_tests {
     fn poe_eq_and_sigma_rejects_wrong_statement() {
         let degree = 8;
 
-        let (powers_g, g2, g2_s) = build_powers(degree);
-        let powers_h = scale_powers_for_base(&powers_g, Fr::from(13u64));
+        let (powers_g1, g2, g2_s) = build_powers(degree);
+        let powers_g = scale_powers_for_base(&powers_g1, Fr::from(7u64));
+        let powers_h = scale_powers_for_base(&powers_g1, Fr::from(13u64));
 
         let g = powers_g
             .powers_of_g
@@ -487,11 +515,13 @@ mod bilinear_poe_tests {
         let v = BilinearNIZK::com::<Bls12_381>(&powers_h, &poly)
             .expect("CRS length must cover polynomial degree");
 
-        let proof =
-            BilinearNIZK::prove_poe_eq::<Bls12_381>(&powers_g, &powers_h, &g, &u, &h, &v, &poly)
-                .expect("CRS vectors must be consistent and long enough");
+        let proof = BilinearNIZK::prove_poe_eq::<Bls12_381>(
+            &powers_g, &powers_h, &powers_g1, &g, &u, &h, &v, &poly,
+        )
+        .expect("CRS vectors must be consistent and long enough");
 
         assert!(!BilinearNIZK::verify_poe_eq::<Bls12_381>(
+            &powers_g1.powers_of_g[0],
             &g,
             &u,
             &h,

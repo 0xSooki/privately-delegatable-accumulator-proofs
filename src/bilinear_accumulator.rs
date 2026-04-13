@@ -153,7 +153,13 @@ impl<E: Pairing> BilinearAccumulator<E> {
         s_t_poly: DensePolynomial<E::ScalarField>,
     ) -> (
         E::G1Affine,
-        nizk::PoeEqAndProof<E>,
+        (
+            E::G1Affine,
+            E::G1Affine,
+            E::G1Affine,
+            E::ScalarField,
+            E::G1Affine,
+        ),
         DensePolynomial<E::ScalarField>,
     )
     where
@@ -185,9 +191,15 @@ impl<E: Pairing> BilinearAccumulator<E> {
             powers_of_gamma_g: Cow::Owned(vec![]),
         };
 
+        let powers_for_g1 = Powers::<E> {
+            powers_of_g: Cow::Owned(self.crs_g1.iter().copied().take(required_len).collect()),
+            powers_of_gamma_g: Cow::Owned(vec![]),
+        };
+
         let poe_eq_proof = nizk::BilinearNIZK::prove_poe_eq::<E>(
             &powers_for_acc_t,
             &powers_for_pi,
+            &powers_for_g1,
             acc_t,
             &acc_t_prime,
             pi,
@@ -205,16 +217,24 @@ impl<E: Pairing> BilinearAccumulator<E> {
         pi_prime: &E::G1Affine,
         acc_t: &E::G1Affine,
         delta: &DensePolynomial<E::ScalarField>,
-        poe_eq_proof: &nizk::PoeEqAndProof<E>,
+        poe_eq_proof: &(
+            E::G1Affine,
+            E::G1Affine,
+            E::G1Affine,
+            E::ScalarField,
+            E::G1Affine,
+        ),
     ) -> bool
     where
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = &self.acc;
+        let g1 = &self.crs_g1[0];
         let g2 = &self.crs_g2[0];
         let g2_s = &self.crs_g2[1];
 
         nizk::BilinearNIZK::verify_poe_eq::<E>(
+            g1,
             acc_t,
             acc_t_prime,
             pi,
@@ -274,7 +294,13 @@ impl<E: Pairing> BilinearAccumulator<E> {
         sn_plus_one: &E::ScalarField,
     ) -> (
         (<E as Pairing>::G1Affine, <E as Pairing>::ScalarField),
-        nizk::PoeEqAndProof<E>,
+        (
+            E::G1Affine,
+            E::G1Affine,
+            E::G1Affine,
+            E::ScalarField,
+            E::G1Affine,
+        ),
         DensePolynomial<E::ScalarField>,
     )
     where
@@ -289,6 +315,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
 
         let delta =
             DensePolynomial::from_coefficients_vec(vec![-*sn_plus_one, E::ScalarField::one()]);
+        let required_len = delta.coeffs().len();
 
         let acc_t_prime = self.acc;
         let acc_t_tau =
@@ -304,9 +331,15 @@ impl<E: Pairing> BilinearAccumulator<E> {
             powers_of_gamma_g: Cow::Owned(vec![]),
         };
 
+        let powers_for_g1 = Powers::<E> {
+            powers_of_g: Cow::Owned(self.crs_g1.iter().copied().take(required_len).collect()),
+            powers_of_gamma_g: Cow::Owned(vec![]),
+        };
+
         let poe_eq_proof = nizk::BilinearNIZK::prove_poe_eq::<E>(
             &powers_for_acc_t,
             &powers_for_q_base,
+            &powers_for_g1,
             acc_t,
             &acc_t_prime,
             &crs_prime.0,
@@ -327,12 +360,19 @@ impl<E: Pairing> BilinearAccumulator<E> {
         ),
         upd_blinded_non_mem_proof: &(<E as Pairing>::G1Affine, <E as Pairing>::ScalarField),
         delta: &DensePolynomial<E::ScalarField>,
-        poe_eq_proof: &nizk::PoeEqAndProof<E>,
+        poe_eq_proof: &(
+            E::G1Affine,
+            E::G1Affine,
+            E::G1Affine,
+            E::ScalarField,
+            E::G1Affine,
+        ),
     ) -> bool
     where
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = &self.acc;
+        let g1 = &self.crs_g1[0];
         let g2 = &self.crs_g2[0];
         let g2_s = &self.crs_g2[1];
 
@@ -340,6 +380,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let (q_prime, _) = upd_blinded_non_mem_proof;
 
         nizk::BilinearNIZK::verify_poe_eq::<E>(
+            g1,
             acc_t,
             acc_t_prime,
             &crs_prime.0,
