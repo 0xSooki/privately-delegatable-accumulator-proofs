@@ -150,7 +150,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         acc_t: &E::G1Affine,
         crs_prime: Vec<E::G1Affine>,
         q_star: DensePolynomial<E::ScalarField>,
-        s_t_poly: DensePolynomial<E::ScalarField>,
+        powers_acc_t: Vec<E::G1Affine>,
     ) -> (
         E::G1Affine,
         (
@@ -171,18 +171,16 @@ impl<E: Pairing> BilinearAccumulator<E> {
 
         let required_len = q_star.coeffs().len();
 
-        let mut powers_acc_t = Vec::with_capacity(required_len);
-        for i in 0..required_len {
-            let mut coeffs = vec![E::ScalarField::zero(); i];
-            coeffs.extend(s_t_poly.coeffs().iter().copied());
-            let shifted = DensePolynomial::from_coefficients_vec(coeffs);
-            powers_acc_t.push(self.kzg_com(&None, &shifted));
-        }
+        assert!(
+            powers_acc_t.len() >= required_len,
+            "powers_acc_t must have at least {} elements",
+            required_len
+        );
 
         debug_assert_eq!(powers_acc_t.first(), Some(acc_t));
 
         let powers_for_acc_t = Powers::<E> {
-            powers_of_g: Cow::Owned(powers_acc_t),
+            powers_of_g: Cow::Owned(powers_acc_t.into_iter().take(required_len).collect()),
             powers_of_gamma_g: Cow::Owned(vec![]),
         };
 
@@ -209,6 +207,21 @@ impl<E: Pairing> BilinearAccumulator<E> {
         .expect("PoEEq proof creation failed");
 
         (pi_prime, poe_eq_proof, q_star)
+    }
+
+    pub fn shift_com(
+        &self,
+        poly: &DensePolynomial<E::ScalarField>,
+        len: usize,
+    ) -> Vec<E::G1Affine> {
+        let mut shifted_coms = Vec::with_capacity(len);
+        for i in 0..len {
+            let mut coeffs = vec![E::ScalarField::zero(); i];
+            coeffs.extend(poly.coeffs().iter().copied());
+            let shifted = DensePolynomial::from_coefficients_vec(coeffs);
+            shifted_coms.push(self.kzg_com(&None, &shifted));
+        }
+        shifted_coms
     }
 
     pub fn ver_blind_mem_proof_upd(
@@ -577,8 +590,10 @@ mod tests {
             },
         );
 
+        let powers_acc_t = acc.shift_com(&s, q_star.coeffs().len());
+
         let (pi_prime, poe_eq_proof, delta) =
-            acc.blind_mem_proof_upd(&pi_blinded, &acc_t, crs_prime, q_star, s);
+            acc.blind_mem_proof_upd(&pi_blinded, &acc_t, crs_prime, q_star, powers_acc_t);
 
         assert!(acc.ver_blind_mem_proof_upd(&pi_blinded, &pi_prime, &acc_t, &delta, &poe_eq_proof,));
 
