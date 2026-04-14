@@ -331,15 +331,16 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                             for elem in &elements_in {
                                 acc.add(elem);
                             }
-                            (acc, elements_in, pi_blinded, acc_t, crs_prime, q_star)
+                            let powers_acc_t = acc.shift_com(&s_poly, q_star.coeffs().len());
+                            (acc, pi_blinded, acc_t, crs_prime, q_star, powers_acc_t)
                         },
-                        |(acc, elements_in, pi_blinded, acc_t, crs_prime, q_star)| {
+                        |(acc, pi_blinded, acc_t, crs_prime, q_star, powers_acc_t)| {
                             let _ = black_box(acc.blind_mem_proof_upd(
-                                elements_in,
                                 &pi_blinded,
                                 &acc_t,
                                 crs_prime,
                                 q_star,
+                                powers_acc_t,
                             ));
                         },
                         BatchSize::SmallInput,
