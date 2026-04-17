@@ -306,7 +306,7 @@ impl RsaAccumulator<RsaGroup> {
     /// # Examples
     ///
     /// ```rust
-    /// use num_bigint::BigUint;
+    /// use num_bigint::{BigInt, BigUint}
     /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
@@ -319,7 +319,7 @@ impl RsaAccumulator<RsaGroup> {
     /// let acc_t = acc.value().clone();
     /// let proof = acc.mem_proof_create(&ep);
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
-    /// let elements_in = vec![BigUint::from(11u32), &BigUint::from(13u32)];
+    /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
     /// for elem in &elements_in {
     /// acc.add(&elem);
     /// }
@@ -361,7 +361,7 @@ impl RsaAccumulator<RsaGroup> {
     /// # Examples
     ///
     /// ```rust
-    /// use num_bigint::BigUint;
+    /// use num_bigint::{BigInt, BigUint}
     /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
@@ -374,7 +374,7 @@ impl RsaAccumulator<RsaGroup> {
     /// let acc_t = acc.value().clone();
     /// let proof = acc.mem_proof_create(&ep);
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
-    /// let elements_in = vec![BigUint::from(11u32), &BigUint::from(13u32)];
+    /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
     /// for elem in &elements_in {
     /// acc.add(&elem);
     /// }
