@@ -55,11 +55,11 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
     let rsa_blinded_mem_for_ver = rsa_blinded_mem.0.clone();
     let rsa_acc_t = rsa_acc_mem_upd.value().clone();
     let rsa_update_exp = rsa_acc_mem_upd.add(&UPDATE_RAW);
+    let rsa_update_delta = num_bigint::BigInt::from(rsa_update_exp);
     let (rsa_upd_blinded_mem, rsa_mem_aux, _) = rsa_acc_mem_upd.blind_mem_proof_upd(
-        vec![rsa_update_exp],
-        vec![],
         &rsa_acc_t,
         &rsa_blinded_mem_for_ver,
+        &rsa_update_delta,
     );
 
     group.bench_function("rsa_blind_mem_proof", |b| {
@@ -100,11 +100,11 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
         let class_blinded_mem_for_ver = class_blinded_mem.0.clone();
         let class_acc_t = class_acc_mem_upd.value().clone();
         let class_update_exp = class_acc_mem_upd.add(&UPDATE_RAW);
+        let class_update_delta = class_update_exp.0.clone();
         let (class_upd_blinded_mem, class_mem_aux, _) = class_acc_mem_upd.blind_mem_proof_upd(
-            vec![class_update_exp],
-            vec![],
             &class_acc_t,
             &class_blinded_mem_for_ver,
+            &class_update_delta,
         );
 
         group.bench_function("class_blind_mem_proof", |b| {

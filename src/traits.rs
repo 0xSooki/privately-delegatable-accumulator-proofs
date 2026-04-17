@@ -103,10 +103,9 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
     /// Update a blinded membership proof
     fn blind_mem_proof_upd(
         &self,
-        elem_in: Vec<Self::Element>,
-        elem_out: Vec<Self::Element>,
         acc_t: &<Self::Group as Group>::Element,
         blinded_proof: &Self::BlindedMembershipProof,
+        delta: &Self::Delta,
     ) -> (
         Self::UpdatedBlindedMembershipProof,
         Self::MembershipUpdateAux,

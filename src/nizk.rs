@@ -54,6 +54,18 @@ impl<'a, G: Group> NIZK<'a, G> {
         self.group.hash_to_prime(&bytes_data)
     }
 
+    pub fn dleq_challenge(
+        &self,
+        g: &G::Element,
+        u: &G::Element,
+        h: &G::Element,
+        v: &G::Element,
+        a: &G::Element,
+        b: &G::Element,
+    ) -> G::Exponent {
+        self.challenge(g, u, h, v, a, b)
+    }
+
     pub fn prove_dleq(
         &self,
         g: &G::Element,
@@ -146,6 +158,19 @@ impl BilinearNIZK {
             alpha = E::ScalarField::one();
         }
         alpha
+    }
+
+    pub fn poe_eq_challenge<E: Pairing>(
+        g: &E::G1Affine,
+        u: &E::G1Affine,
+        h: &E::G1Affine,
+        v: &E::G1Affine,
+        poly: &DensePolynomial<E::ScalarField>,
+    ) -> E::ScalarField
+    where
+        E::ScalarField: PrimeField,
+    {
+        Self::fs::<E>(g, u, h, v, poly)
     }
 
     fn syn_div_by_x_minus_c<E: Pairing>(
