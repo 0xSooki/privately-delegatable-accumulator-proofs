@@ -10,6 +10,20 @@ use rand::thread_rng;
 use std::collections::HashSet;
 
 impl RsaAccumulator<RsaGroup> {
+    /// Creates a new RSA accumulator with randomly generated safe prime parameters.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup();
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// let proof = acc.mem_proof_create(&ep);
+    /// assert!(acc.mem_ver(&proof, &ep));
+    /// ```
     pub fn setup() -> Self {
         let mut rng = rand::thread_rng();
 
@@ -27,12 +41,42 @@ impl RsaAccumulator<RsaGroup> {
         Self::new(group)
     }
 
+    /// Creates a new RSA accumulator from explicit parameters.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// assert_eq!(acc.value(), &BigUint::from(2u32));
+    /// ```
     pub fn setup_from_params(p: BigUint, q: BigUint, g: BigUint, order: Option<BigUint>) -> Self {
         let n = &p * &q;
         let group = RsaGroup::new(n, g, order);
         Self::new(group)
     }
 
+    /// Creates a new RSA accumulator without knowledge of the group order (trapdoorless).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// let proof = acc.mem_proof_create(&ep);
+    /// assert!(acc.mem_ver(&proof, &ep));
+    /// ```
     pub fn setup_trapdoorless() -> Self {
         let mut rng = rand::thread_rng();
 
@@ -48,14 +92,69 @@ impl RsaAccumulator<RsaGroup> {
         Self::new(group)
     }
 
+    /// Sets the group order (totient) on the accumulator, enabling trapdoor-based operations.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     None,
+    /// );
+    /// acc.set_group_order(Some(BigUint::from(3120u32)));
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep), &ep));
+    /// ```
     pub fn set_group_order(&mut self, order: Option<BigUint>) {
         self.group.set_order(order);
     }
 
+    /// Removes the group order from the accumulator, switching to trapdoorless mode.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// acc.clear_group_order();
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep), &ep));
+    /// ```
     pub fn clear_group_order(&mut self) {
         self.group.set_order(None);
     }
 
+    /// Returns the product of all elements in the set, reduced modulo the group order if available.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// acc.add(&BigUint::from(2u32));
+    /// acc.add(&BigUint::from(3u32));
+    /// // Result is reduced modulo the group order (3120).
+    /// assert!(acc.calculate_product() < BigUint::from(3120u32));
+    /// ```
     pub fn calculate_product(&self) -> BigUint {
         if let Some(o) = self.group.order() {
             self.set.iter().fold(BigUint::one(), |acc, v| (acc * v) % o)
@@ -64,6 +163,25 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
+    /// Removes an element from the accumulator, updating the accumulated value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let initial = acc.value().clone();
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// acc.del(&ep);
+    /// assert_eq!(acc.value(), &initial);
+    /// ```
     pub fn del(&mut self, element: &BigUint) {
         if self.set.remove(&element) {
             if let Some(o) = self.group.order() {
@@ -76,6 +194,25 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
+    /// Creates a membership proof for an element in the accumulator.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// acc.add(&BigUint::from(11u32));
+    /// let proof = acc.mem_proof_create(&ep);
+    /// assert!(acc.mem_ver(&proof, &ep));
+    /// ```
     pub fn mem_proof_create(&self, element: &BigUint) -> BigUint {
         if !self.set.contains(&element) {
             panic!("Element not in accumulator set");
@@ -90,6 +227,29 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
+    /// Creates a non-membership proof for an element not in the accumulator.
+    ///
+    /// `prod` must be the product of all prime elements currently in the accumulator set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::{BigInt, BigUint, ToBigInt};
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// acc.add(&BigUint::from(2u32));
+    /// acc.add(&BigUint::from(3u32));
+    /// let non_member = BigUint::from(5u32);
+    /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
+    /// let proof = acc.non_mem_proof_create(&non_member, &product);
+    /// assert!(acc.non_mem_ver(&proof, &non_member));
+    /// ```
     pub fn non_mem_proof_create(&self, element: &BigUint, prod: &BigInt) -> (BigInt, BigUint) {
         let x_prime_int = BigInt::from(element.clone());
 
@@ -112,12 +272,57 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
+    /// Verifies a non-membership proof for a given element.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::{BigInt, BigUint, ToBigInt};
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// acc.add(&BigUint::from(2u32));
+    /// acc.add(&BigUint::from(3u32));
+    /// let non_member = BigUint::from(5u32);
+    /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
+    /// let proof = acc.non_mem_proof_create(&non_member, &product);
+    /// assert!(acc.non_mem_ver(&proof, &non_member));
+    /// ```
     pub fn non_mem_ver(&self, proof: &(BigInt, BigUint), element: &BigUint) -> bool {
         let lhs = self.group.signed_exp(&self.acc, &proof.0);
         let rhs = self.group.exp(&proof.1, &element);
         self.group.mul(&lhs, &rhs) == self.group.g()
     }
 
+    /// Updates a blinded membership proof after new elements are added to the accumulator.
+    ///
+    /// Returns the updated blinded proof, a NIZK auxiliary proof, and the new accumulator value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// let acc_t = acc.value().clone();
+    /// let proof = acc.mem_proof_create(&ep);
+    /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
+    /// let new_elem = acc.add(&BigUint::from(11u32));
+    /// let upd = acc.blind_mem_proof_upd(vec![new_elem], vec![], &acc_t, &blinded_proof);
+    /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
+    /// ```
     pub fn blind_mem_proof_upd(
         &self,
         elem_in: Vec<BigUint>,
@@ -150,6 +355,28 @@ impl RsaAccumulator<RsaGroup> {
         (upd_blinded_proof, aux, self.acc.clone())
     }
 
+    /// Verifies that a blinded membership proof was correctly updated using NIZK proofs.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let ep = acc.add(&BigUint::from(7u32));
+    /// let acc_t = acc.value().clone();
+    /// let proof = acc.mem_proof_create(&ep);
+    /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
+    /// let new_elem = acc.add(&BigUint::from(11u32));
+    /// let upd = acc.blind_mem_proof_upd(vec![new_elem], vec![], &acc_t, &blinded_proof);
+    /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
+    /// ```
     pub fn ver_blind_mem_proof_upd(
         &self,
         acc_t: &BigUint,
@@ -171,6 +398,27 @@ impl RsaAccumulator<RsaGroup> {
         d1 && d2
     }
 
+    /// Creates a blinded non-membership proof for an element not in the accumulator.
+    ///
+    /// The blinded proof is `element * q` for a randomly chosen prime `q` (the blinding factor).
+    /// Returns `(0, 1)` if the element is already a member.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let non_member = BigUint::from(17u32);
+    /// let (blinded, q) = acc.blind_non_mem_proof(&non_member);
+    /// assert_eq!(blinded, &non_member * &q);
+    /// ```
     pub fn blind_non_mem_proof(&self, element: &BigUint) -> (BigUint, BigUint) {
         if self.set.contains(element) {
             (BigUint::from(0u32), BigUint::from(1u32))
@@ -239,6 +487,25 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
+    /// Verifies that a blinded non-membership proof was correctly updated.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::{BigInt, BigUint};
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let non_member = BigUint::from(17u32);
+    /// let blinded = acc.blind_non_mem_proof(&non_member);
+    /// let upd = acc.blind_non_mem_proof_upd(&blinded.0, &BigInt::from(1i32));
+    /// assert!(acc.ver_blind_non_mem_proof_upd(acc.value(), &blinded.0, &upd));
+    /// ```
     pub fn ver_blind_non_mem_proof_upd(
         &self,
         acc_t_prime: &BigUint,
@@ -253,6 +520,28 @@ impl RsaAccumulator<RsaGroup> {
         self.group.mul(&lhs, &rhs) == self.group.g()
     }
 
+    /// Unblinds an updated non-membership proof using the original blinding factor.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::{BigInt, BigUint, ToBigInt};
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let non_member = BigUint::from(17u32);
+    /// let (blinded, q) = acc.blind_non_mem_proof(&non_member);
+    /// acc.add(&BigUint::from(5u32));
+    /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
+    /// let upd = acc.blind_non_mem_proof_upd(&blinded, &product);
+    /// let proof = acc.unblind_non_mem_proof(&q, &upd);
+    /// assert!(acc.non_mem_ver(&proof, &non_member));
+    /// ```
     pub fn unblind_non_mem_proof(
         &self,
         st: &BigUint,
@@ -264,6 +553,25 @@ impl RsaAccumulator<RsaGroup> {
         (a.clone(), b_prime)
     }
 
+    /// Returns the product of all elements in the set without modular reduction.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::BigUint;
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    /// let ep1 = acc.add(&BigUint::from(2u32));
+    /// let ep2 = acc.add(&BigUint::from(3u32));
+    /// // Each element is stored as its hash-to-prime representative.
+    /// assert_eq!(acc.calculate_product_unreduced(), &ep1 * &ep2);
+    /// ```
     pub fn calculate_product_unreduced(&self) -> BigUint {
         self.set.iter().product()
     }
