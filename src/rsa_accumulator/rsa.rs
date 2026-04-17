@@ -189,6 +189,31 @@ impl RsaAccumulator<RsaGroup> {
         }
     }
 
+    /// Updates a blinded non-membership proof after accumulator changes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use num_bigint::{BigInt, BigUint};
+    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    ///
+    /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
+    ///     BigUint::from(61u32),
+    ///     BigUint::from(53u32),
+    ///     BigUint::from(2u32),
+    ///     Some(BigUint::from(3120u32)),
+    /// );
+    ///
+    /// // With an empty set, the accumulator value is g and delta = 1.
+    /// let blinded_non_member = BigUint::from(17u32);
+    /// let updated = acc.blind_non_mem_proof_upd(&blinded_non_member, &BigInt::from(1u32));
+    ///
+    /// assert!(acc.ver_blind_non_mem_proof_upd(
+    ///     acc.value(),
+    ///     &blinded_non_member,
+    ///     &updated,
+    /// ));
+    /// ```
     pub fn blind_non_mem_proof_upd(
         &self,
         blinded_non_mem_proof: &BigUint,
