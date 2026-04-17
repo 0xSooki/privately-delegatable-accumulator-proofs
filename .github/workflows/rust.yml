@@ -33,3 +33,6 @@ jobs:
 
       - name: Test
         run: cargo test --verbose
+
+      - name: Doc test
+        run: cargo test --doc --verbose
