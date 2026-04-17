@@ -43,3 +43,7 @@ harness = false
 [[bench]]
 name = "bench_o1_bilinear_vs_class_vs_rsa"
 harness = false
+
+[[bench]]
+name = "bench_bilinear_update_breakdown"
+harness = false
