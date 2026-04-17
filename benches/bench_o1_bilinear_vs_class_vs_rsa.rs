@@ -318,12 +318,8 @@ fn benchmark_o1_non_membership_ops(c: &mut Criterion) {
     let mut bilinear_acc_non_mem_upd = bilinear_acc_non_mem.clone();
     let bilinear_acc_t = bilinear_acc_non_mem_upd.value();
     bilinear_acc_non_mem_upd.add(&update);
-    let (bilinear_upd_blinded_non_mem, bilinear_non_mem_poe_eq_proof, bilinear_non_mem_delta) =
-        bilinear_acc_non_mem_upd.blind_non_mem_proof_upd(
-            &bilinear_blinded_non_mem,
-            &bilinear_acc_t,
-            &update,
-        );
+    let (bilinear_upd_blinded_non_mem, bilinear_g2_sn_plus_one) = bilinear_acc_non_mem_upd
+        .blind_non_mem_proof_upd(&bilinear_blinded_non_mem, &bilinear_acc_t, &update);
 
     group.bench_function("bilinear_blind_non_mem_proof", |b| {
         b.iter(|| {
@@ -350,8 +346,7 @@ fn benchmark_o1_non_membership_ops(c: &mut Criterion) {
                 &bilinear_acc_t,
                 &bilinear_blinded_non_mem,
                 &bilinear_upd_blinded_non_mem,
-                &bilinear_non_mem_delta,
-                &bilinear_non_mem_poe_eq_proof,
+                &bilinear_g2_sn_plus_one,
             ));
         });
     });

@@ -188,26 +188,46 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                 &size,
                 |b, &n| {
                     b.iter_batched(
-                        || (base_acc_bilinear.clone(), bilinear_non_mem_proof.clone()),
-                        |(mut acc, mut proof)| {
+                        || {
+                            let mut acc_for_chain = base_acc_bilinear.clone();
+                            let mut proof_for_chain = bilinear_non_mem_proof.clone();
+                            let mut prepared_inputs = Vec::with_capacity(n);
+
                             for sn_plus_one in bilinear_update_elements.iter().take(n) {
-                                let (blinded_non_mem_proof, r) =
-                                    acc.blind_non_mem_proof(&proof, non_element_bilinear);
-                                let acc_t = acc.value();
-                                acc.add(sn_plus_one);
-                                let (blinded_updated_proof, _poe_eq_proof, _delta) = acc
+                                let (blinded_non_mem_proof, r) = acc_for_chain
+                                    .blind_non_mem_proof(&proof_for_chain, non_element_bilinear);
+                                let acc_t = acc_for_chain.value();
+
+                                let mut acc_after_update = acc_for_chain.clone();
+                                acc_after_update.add(sn_plus_one);
+
+                                let (blinded_updated_proof, _g2_sn_plus_one) = acc_after_update
                                     .blind_non_mem_proof_upd(
                                         &blinded_non_mem_proof,
                                         &acc_t,
                                         sn_plus_one,
                                     );
-                                proof = acc.unblind_non_mem_proof(
+
+                                proof_for_chain = acc_after_update.unblind_non_mem_proof(
                                     &blinded_updated_proof,
                                     &(r, blinded_non_mem_proof.1),
                                     non_element_bilinear,
                                 );
+
+                                prepared_inputs.push((blinded_non_mem_proof, acc_t, *sn_plus_one));
+                                acc_for_chain = acc_after_update;
                             }
-                            black_box(proof);
+
+                            prepared_inputs
+                        },
+                        |prepared_inputs| {
+                            for (blinded_non_mem_proof, acc_t, sn_plus_one) in prepared_inputs {
+                                let _ = black_box(base_acc_bilinear.blind_non_mem_proof_upd(
+                                    black_box(&blinded_non_mem_proof),
+                                    black_box(&acc_t),
+                                    black_box(&sn_plus_one),
+                                ));
+                            }
                         },
                         BatchSize::SmallInput,
                     );

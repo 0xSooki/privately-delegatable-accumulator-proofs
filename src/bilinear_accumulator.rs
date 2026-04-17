@@ -303,22 +303,9 @@ impl<E: Pairing> BilinearAccumulator<E> {
             (<E as Pairing>::G1Affine, <E as Pairing>::G1Affine),
             <E as Pairing>::ScalarField,
         ),
-        acc_t: &E::G1Affine,
+        _acc_t: &E::G1Affine,
         sn_plus_one: &E::ScalarField,
-    ) -> (
-        (<E as Pairing>::G1Affine, <E as Pairing>::ScalarField),
-        (
-            E::G1Affine,
-            E::G1Affine,
-            E::G1Affine,
-            E::ScalarField,
-            E::G1Affine,
-        ),
-        DensePolynomial<E::ScalarField>,
-    )
-    where
-        E::ScalarField: PrimeField,
-    {
+    ) -> ((E::G1Affine, E::ScalarField), E::G2Affine) {
         let (crs_prime, y_prime) = blinded_non_mem_proof;
         let q_prime = (crs_prime.1.into_group()
             - crs_prime.0.into_group() * sn_plus_one.to_owned())
@@ -326,42 +313,11 @@ impl<E: Pairing> BilinearAccumulator<E> {
 
         let y_prime_t_prime = y_prime.to_owned() * sn_plus_one.to_owned();
 
-        let delta =
-            DensePolynomial::from_coefficients_vec(vec![-*sn_plus_one, E::ScalarField::one()]);
-        let required_len = delta.coeffs().len();
+        let g2 = self.crs_g2[0];
 
-        let acc_t_prime = self.acc;
-        let acc_t_tau =
-            (acc_t_prime.into_group() + acc_t.into_group() * sn_plus_one.to_owned()).into_affine();
+        let g2_sn_plus_one = (g2.into_group() * sn_plus_one.to_owned()).into_affine();
 
-        let powers_for_acc_t = Powers::<E> {
-            powers_of_g: Cow::Owned(vec![acc_t.to_owned(), acc_t_tau]),
-            powers_of_gamma_g: Cow::Owned(vec![]),
-        };
-
-        let powers_for_q_base = Powers::<E> {
-            powers_of_g: Cow::Owned(vec![crs_prime.0, crs_prime.1]),
-            powers_of_gamma_g: Cow::Owned(vec![]),
-        };
-
-        let powers_for_g1 = Powers::<E> {
-            powers_of_g: Cow::Owned(self.crs_g1.iter().copied().take(required_len).collect()),
-            powers_of_gamma_g: Cow::Owned(vec![]),
-        };
-
-        let poe_eq_proof = nizk::BilinearNIZK::prove_poe_eq::<E>(
-            &powers_for_acc_t,
-            &powers_for_q_base,
-            &powers_for_g1,
-            acc_t,
-            &acc_t_prime,
-            &crs_prime.0,
-            &q_prime,
-            &delta,
-        )
-        .expect("PoEEq proof creation failed");
-
-        ((q_prime, y_prime_t_prime), poe_eq_proof, delta)
+        ((q_prime, y_prime_t_prime), g2_sn_plus_one)
     }
 
     pub fn ver_blind_non_mem_proof_upd(
@@ -372,37 +328,33 @@ impl<E: Pairing> BilinearAccumulator<E> {
             <E as Pairing>::ScalarField,
         ),
         upd_blinded_non_mem_proof: &(<E as Pairing>::G1Affine, <E as Pairing>::ScalarField),
-        delta: &DensePolynomial<E::ScalarField>,
-        poe_eq_proof: &(
-            E::G1Affine,
-            E::G1Affine,
-            E::G1Affine,
-            E::ScalarField,
-            E::G1Affine,
-        ),
+        g2_sn_plus_one: &E::G2Affine,
     ) -> bool
     where
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = &self.acc;
-        let g1 = &self.crs_g1[0];
-        let g2 = &self.crs_g2[0];
-        let g2_s = &self.crs_g2[1];
+        let g2 = self.crs_g2[0];
+        let g2_tau = self.crs_g2[1];
 
         let (crs_prime, _) = blinded_non_mem_proof;
         let (q_prime, _) = upd_blinded_non_mem_proof;
 
-        nizk::BilinearNIZK::verify_poe_eq::<E>(
-            g1,
-            acc_t,
-            acc_t_prime,
-            &crs_prime.0,
-            q_prime,
-            g2,
-            g2_s,
-            delta,
-            poe_eq_proof,
-        )
+        let g2_tau_minus_sn_plus_one =
+            (g2_tau.into_group() - g2_sn_plus_one.into_group()).into_affine();
+
+        let acc_update_ok =
+            E::pairing(acc_t, g2_tau_minus_sn_plus_one) == E::pairing(acc_t_prime, g2);
+        if !acc_update_ok {
+            return false;
+        }
+
+        let lhs = E::multi_pairing(
+            [q_prime.to_owned(), crs_prime.0],
+            [g2, g2_sn_plus_one.to_owned()],
+        );
+        let rhs = E::pairing(crs_prime.1, g2);
+        lhs == rhs
     }
 
     pub fn unblind_non_mem_proof(
@@ -627,15 +579,14 @@ mod tests {
         let sn_plus_one = ark_bls12_381::Fr::from(67u64);
         acc.add(&sn_plus_one);
 
-        let (pi_prime_t_prime, poe_eq_proof, delta) =
+        let (pi_prime_t_prime, g2_sn_plus_one) =
             acc.blind_non_mem_proof_upd(&blinded_non_mem_proof, &acc_t, &sn_plus_one);
 
         assert!(acc.ver_blind_non_mem_proof_upd(
             &acc_t,
             &blinded_non_mem_proof,
             &pi_prime_t_prime,
-            &delta,
-            &poe_eq_proof,
+            &g2_sn_plus_one,
         ));
 
         let updated_proof =
