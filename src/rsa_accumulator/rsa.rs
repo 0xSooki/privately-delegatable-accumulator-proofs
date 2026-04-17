@@ -319,8 +319,17 @@ impl RsaAccumulator<RsaGroup> {
     /// let acc_t = acc.value().clone();
     /// let proof = acc.mem_proof_create(&ep);
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
-    /// let new_elem = acc.add(&BigUint::from(11u32));
-    /// let upd = acc.blind_mem_proof_upd(vec![new_elem], vec![], &acc_t, &blinded_proof);
+    /// let elements_in = vec![BigUint::from(11u32), &BigUint::from(13u32)];
+    /// for elem in &elements_in {
+    /// acc.add(&elem);
+    /// }
+    /// let delta = if let Some(o) = acc.group.order() {
+    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+    /// } else {
+    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
+    /// };
+    /// let delta_int = BigInt::from(delta);
+    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
     /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
     /// ```
     pub fn blind_mem_proof_upd(
@@ -365,8 +374,17 @@ impl RsaAccumulator<RsaGroup> {
     /// let acc_t = acc.value().clone();
     /// let proof = acc.mem_proof_create(&ep);
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
-    /// let new_elem = acc.add(&BigUint::from(11u32));
-    /// let upd = acc.blind_mem_proof_upd(vec![new_elem], vec![], &acc_t, &blinded_proof);
+    /// let elements_in = vec![BigUint::from(11u32), &BigUint::from(13u32)];
+    /// for elem in &elements_in {
+    /// acc.add(&elem);
+    /// }
+    /// let delta = if let Some(o) = acc.group.order() {
+    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+    /// } else {
+    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
+    /// };
+    /// let delta_int = BigInt::from(delta);
+    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
     /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
     /// ```
     pub fn ver_blind_mem_proof_upd(
