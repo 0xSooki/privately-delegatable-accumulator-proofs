@@ -306,7 +306,7 @@ impl RsaAccumulator<RsaGroup> {
     /// # Examples
     ///
     /// ```rust
-    /// use num_bigint::{BigInt, BigUint}
+    /// use num_bigint::{BigInt, BigUint};
     /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
@@ -320,13 +320,11 @@ impl RsaAccumulator<RsaGroup> {
     /// let proof = acc.mem_proof_create(&ep);
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
-    /// for elem in &elements_in {
-    /// acc.add(&elem);
-    /// }
+    /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
     /// let delta = if let Some(o) = acc.group.order() {
-    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
     /// } else {
-    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
+    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
     /// };
     /// let delta_int = BigInt::from(delta);
     /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
@@ -361,7 +359,7 @@ impl RsaAccumulator<RsaGroup> {
     /// # Examples
     ///
     /// ```rust
-    /// use num_bigint::{BigInt, BigUint}
+    /// use num_bigint::{BigInt, BigUint};
     /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
@@ -375,13 +373,11 @@ impl RsaAccumulator<RsaGroup> {
     /// let proof = acc.mem_proof_create(&ep);
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
-    /// for elem in &elements_in {
-    /// acc.add(&elem);
-    /// }
+    /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
     /// let delta = if let Some(o) = acc.group.order() {
-    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
     /// } else {
-    /// elements_in.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
+    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
     /// };
     /// let delta_int = BigInt::from(delta);
     /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
