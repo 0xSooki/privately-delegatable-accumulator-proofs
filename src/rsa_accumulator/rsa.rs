@@ -120,30 +120,22 @@ impl RsaAccumulator<RsaGroup> {
 
     pub fn blind_mem_proof_upd(
         &self,
-        elem_in: Vec<BigUint>,
-        _elem_out: Vec<BigUint>,
         acc_t: &BigUint,
         blinded_proof: &BigUint,
+        delta: &BigInt,
     ) -> UpdatedBlindProof {
-        let mut delta = BigUint::one();
-        if let Some(o) = self.group.order() {
-            for elem in elem_in {
-                delta = (delta * elem) % o;
-            }
-        } else {
-            for elem in elem_in {
-                delta *= elem;
-            }
-        }
+        let delta_uint = delta
+            .to_biguint()
+            .expect("delta must be non-negative for membership proof update");
 
         let acc_t_prime = &self.acc;
-        let a = self.group.exp(blinded_proof, &delta);
+        let a = self.group.exp(blinded_proof, &delta_uint);
         let g = self.group.g();
-        let b = self.group.exp(&g, &delta);
+        let b = self.group.exp(&g, &delta_uint);
 
         let nizk = NIZK::setup(&self.group);
-        let pi1 = NIZK::prove_dleq(&nizk, blinded_proof, &a, acc_t, acc_t_prime, &delta);
-        let pi2 = NIZK::prove_dleq(&nizk, &g, &b, blinded_proof, &a, &delta);
+        let pi1 = NIZK::prove_dleq(&nizk, blinded_proof, &a, acc_t, acc_t_prime, &delta_uint);
+        let pi2 = NIZK::prove_dleq(&nizk, &g, &b, blinded_proof, &a, &delta_uint);
 
         let upd_blinded_proof = (a, b);
         let aux = (pi1, pi2);
@@ -343,16 +335,15 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
 
     fn blind_mem_proof_upd(
         &self,
-        elem_in: Vec<Self::Element>,
-        elem_out: Vec<Self::Element>,
         acc_t: &<Self::Group as Group>::Element,
         blinded_proof: &Self::BlindedMembershipProof,
+        delta: &Self::Delta,
     ) -> (
         Self::UpdatedBlindedMembershipProof,
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     ) {
-        self.blind_mem_proof_upd(elem_in, elem_out, acc_t, blinded_proof)
+        self.blind_mem_proof_upd(acc_t, blinded_proof, delta)
     }
 
     fn ver_blind_mem_proof_upd(
@@ -508,13 +499,19 @@ mod trapdoored_tests {
             BigUint::from(15485863u32),
         ];
 
-        let elements_out = vec![];
         let elements_in = elements_in.iter().map(|e| acc.add(e)).collect::<Vec<_>>();
+        let delta = if let Some(o) = acc.group.order() {
+            elements_in
+                .iter()
+                .fold(BigUint::one(), |prod, e| (prod * e) % o)
+        } else {
+            elements_in.iter().fold(BigUint::one(), |prod, e| prod * e)
+        };
+        let delta_int = delta.to_bigint().unwrap();
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
-        let upd_blind_proof =
-            acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+        let upd_blind_proof = acc.blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int);
 
         assert!(acc.ver_blind_mem_proof_upd(
             &acct,
@@ -690,12 +687,17 @@ mod trapdoorless_tests {
             BigUint::from(15485863u32),
         ];
 
-        let elements_out = vec![];
-
         let elements_in = elements.iter().map(|e| acc.add(e)).collect::<Vec<_>>();
+        let delta = if let Some(o) = acc.group.order() {
+            elements_in
+                .iter()
+                .fold(BigUint::one(), |prod, e| (prod * e) % o)
+        } else {
+            elements_in.iter().fold(BigUint::one(), |prod, e| prod * e)
+        };
+        let delta_int = delta.to_bigint().unwrap();
 
-        let upd_blind_proof =
-            acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+        let upd_blind_proof = acc.blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int);
 
         assert!(acc.ver_blind_mem_proof_upd(
             &acct,

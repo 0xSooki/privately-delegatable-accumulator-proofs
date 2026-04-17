@@ -228,14 +228,25 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                             for elem in &elements_in {
                                 acc.add(elem);
                             }
-                            (acc, elements_in, acc_t, blinded_proof)
+
+                            let delta = if let Some(o) = acc.group.order() {
+                                elements_in
+                                    .iter()
+                                    .fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+                            } else {
+                                elements_in
+                                    .iter()
+                                    .fold(BigUint::from(1u32), |prod, e| prod * e)
+                            };
+                            let delta_int = BigInt::from(delta);
+
+                            (acc, delta_int, acc_t, blinded_proof)
                         },
-                        |(acc, elements_in, acc_t, blinded_proof)| {
+                        |(acc, delta_int, acc_t, blinded_proof)| {
                             black_box(acc.blind_mem_proof_upd(
-                                elements_in,
-                                vec![],
                                 &acc_t,
                                 &blinded_proof.0,
+                                &delta_int,
                             ));
                         },
                         BatchSize::SmallInput,
@@ -257,14 +268,25 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                             for elem in &elements_in {
                                 acc.add(elem);
                             }
-                            (acc, elements_in, acc_t, blinded_proof)
+
+                            let delta = if let Some(o) = acc.group.order() {
+                                elements_in
+                                    .iter()
+                                    .fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+                            } else {
+                                elements_in
+                                    .iter()
+                                    .fold(BigUint::from(1u32), |prod, e| prod * e)
+                            };
+                            let delta_int = BigInt::from(delta);
+
+                            (acc, delta_int, acc_t, blinded_proof)
                         },
-                        |(acc, elements_in, acc_t, blinded_proof)| {
+                        |(acc, delta_int, acc_t, blinded_proof)| {
                             black_box(acc.blind_mem_proof_upd(
-                                elements_in,
-                                vec![],
                                 &acc_t,
                                 &blinded_proof.0,
+                                &delta_int,
                             ));
                         },
                         BatchSize::SmallInput,
@@ -286,15 +308,16 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                             for elem in &elements_in {
                                 acc.add(elem);
                             }
-                            (acc, elements_in, acc_t, blinded_proof)
+                            let delta = elements_in
+                                .iter()
+                                .fold(ClassGroup::exp_id(), |prod, e| {
+                                    ClassGroup::exp_mul(&prod, e)
+                                })
+                                .0;
+                            (acc, delta, acc_t, blinded_proof)
                         },
-                        |(acc, elements_in, acc_t, blinded_proof)| {
-                            black_box(acc.blind_mem_proof_upd(
-                                elements_in,
-                                vec![],
-                                &acc_t,
-                                &blinded_proof.0,
-                            ));
+                        |(acc, delta, acc_t, blinded_proof)| {
+                            black_box(acc.blind_mem_proof_upd(&acc_t, &blinded_proof.0, &delta));
                         },
                         BatchSize::SmallInput,
                     );

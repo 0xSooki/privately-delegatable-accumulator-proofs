@@ -98,14 +98,23 @@ fn benchmark_ver_blind_mem_proof_upd(c: &mut Criterion) {
                     BigUint::from(1299709u32),
                     BigUint::from(15485863u32),
                 ];
-
-                let elements_out = vec![];
                 for elem in &elements_in {
                     acc.add(&elem);
                 }
 
+                let delta = if let Some(o) = acc.group.order() {
+                    elements_in
+                        .iter()
+                        .fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+                } else {
+                    elements_in
+                        .iter()
+                        .fold(BigUint::from(1u32), |prod, e| prod * e)
+                };
+                let delta_int = BigInt::from(delta);
+
                 let updated_blind_proof =
-                    acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+                    acc.blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int);
 
                 (acc, acct, blinded_proof, updated_blind_proof)
             },
@@ -157,15 +166,25 @@ fn benchmark_blind_mem_proof_upd(c: &mut Criterion) {
                             elements_in.push(elem);
                         }
 
-                        let elements_out = vec![];
                         for elem in &elements_in {
                             acc.add(&elem);
                         }
 
-                        (acc, elements_in, elements_out, acct, blinded_proof)
+                        let delta = if let Some(o) = acc.group.order() {
+                            elements_in
+                                .iter()
+                                .fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+                        } else {
+                            elements_in
+                                .iter()
+                                .fold(BigUint::from(1u32), |prod, e| prod * e)
+                        };
+                        let delta_int = BigInt::from(delta);
+
+                        (acc, delta_int, acct, blinded_proof)
                     },
-                    |(acc, elements_in, elements_out, acct, blinded_proof)| {
-                        acc.blind_mem_proof_upd(elements_in, elements_out, &acct, &blinded_proof.0);
+                    |(acc, delta_int, acct, blinded_proof)| {
+                        acc.blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int);
                     },
                     BatchSize::SmallInput,
                 );

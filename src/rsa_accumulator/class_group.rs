@@ -106,27 +106,24 @@ impl RsaAccumulator<ClassGroup> {
 
     pub fn blind_mem_proof_upd(
         &self,
-        elem_in: Vec<ClassGroupExponent>,
-        _elem_out: Vec<ClassGroupExponent>,
         acc_t: &ClassGroupElement,
         blinded_proof: &ClassGroupElement,
+        delta: &BigInt,
     ) -> (
         (ClassGroupElement, ClassGroupElement),
         ClassGroupAux,
         ClassGroupElement,
     ) {
-        let delta = elem_in
-            .iter()
-            .fold(ClassGroup::exp_id(), |acc, x| ClassGroup::exp_mul(&acc, x));
+        let delta_exp = ClassGroupExponent(delta.clone());
 
         let acc_t_prime = &self.acc;
-        let a = self.group.exp(blinded_proof, &delta);
+        let a = self.group.exp(blinded_proof, &delta_exp);
         let g = self.group.g();
-        let b = self.group.exp(&g, &delta);
+        let b = self.group.exp(&g, &delta_exp);
 
         let nizk = NIZK::setup(&self.group);
-        let pi1 = nizk.prove_dleq(blinded_proof, &a, acc_t, acc_t_prime, &delta);
-        let pi2 = nizk.prove_dleq(&g, &b, blinded_proof, &a, &delta);
+        let pi1 = nizk.prove_dleq(blinded_proof, &a, acc_t, acc_t_prime, &delta_exp);
+        let pi2 = nizk.prove_dleq(&g, &b, blinded_proof, &a, &delta_exp);
 
         ((a, b), (pi1, pi2), self.acc.clone())
     }
@@ -288,16 +285,15 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
 
     fn blind_mem_proof_upd(
         &self,
-        elem_in: Vec<Self::Element>,
-        elem_out: Vec<Self::Element>,
         acc_t: &<Self::Group as Group>::Element,
         blinded_proof: &Self::BlindedMembershipProof,
+        delta: &Self::Delta,
     ) -> (
         Self::UpdatedBlindedMembershipProof,
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     ) {
-        self.blind_mem_proof_upd(elem_in, elem_out, acc_t, blinded_proof)
+        self.blind_mem_proof_upd(acc_t, blinded_proof, delta)
     }
 
     fn ver_blind_mem_proof_upd(
@@ -445,12 +441,15 @@ mod tests {
             .iter()
             .map(|e| acc.add(e))
             .collect::<Vec<_>>();
-
-        let elements_out = vec![];
+        let delta = elements_in
+            .iter()
+            .fold(ClassGroup::exp_id(), |prod, e| {
+                ClassGroup::exp_mul(&prod, e)
+            })
+            .0;
 
         let blinded_proof = acc.blind_mem_proof(&proof);
-        let upd_blind_proof =
-            acc.blind_mem_proof_upd(elements_in, elements_out, &acc_t, &blinded_proof.0);
+        let upd_blind_proof = acc.blind_mem_proof_upd(&acc_t, &blinded_proof.0, &delta);
 
         assert!(acc.ver_blind_mem_proof_upd(
             &acc_t,
