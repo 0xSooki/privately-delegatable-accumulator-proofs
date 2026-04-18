@@ -1,4 +1,4 @@
-# Privacy-preserving accumulator proofs
+# Rust library for the private proof update delegation in cryptographic accumulators
 
 This repository contains code for privacy-preserving accumulator proof updates, that allows clients to outsource heavy proof updates to a server while using blinding techniques to keep the specific elements being updated hidden from that server.
 
