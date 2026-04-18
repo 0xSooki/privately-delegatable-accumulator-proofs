@@ -229,7 +229,7 @@ impl RsaAccumulator<RsaGroup> {
 
     /// Creates a non-membership proof for an element not in the accumulator.
     ///
-    /// `prod` must be the product of all prime elements currently in the accumulator set.
+    /// `delta` must be the product of all prime elements currently in the accumulator set.
     ///
     /// # Examples
     ///
@@ -250,10 +250,10 @@ impl RsaAccumulator<RsaGroup> {
     /// let proof = acc.non_mem_proof_create(&non_member, &product);
     /// assert!(acc.non_mem_ver(&proof, &non_member));
     /// ```
-    pub fn non_mem_proof_create(&self, element: &BigUint, prod: &BigInt) -> (BigInt, BigUint) {
+    pub fn non_mem_proof_create(&self, element: &BigUint, delta: &BigInt) -> (BigInt, BigUint) {
         let x_prime_int = BigInt::from(element.clone());
 
-        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(prod, &x_prime_int);
+        let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(delta, &x_prime_int);
         assert_eq!(
             gcd,
             BigInt::one(),
@@ -322,9 +322,9 @@ impl RsaAccumulator<RsaGroup> {
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
     /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
     /// let delta = if let Some(o) = acc.group.order() {
-    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+    ///     eps.iter().fold(BigUint::from(1u32), |delta, e| (delta * e) % o)
     /// } else {
-    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
+    ///     eps.iter().fold(BigUint::from(1u32), |delta, e| delta * e)
     /// };
     /// let delta_int = BigInt::from(delta);
     /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
@@ -375,9 +375,9 @@ impl RsaAccumulator<RsaGroup> {
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
     /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
     /// let delta = if let Some(o) = acc.group.order() {
-    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| (prod * e) % o)
+    ///     eps.iter().fold(BigUint::from(1u32), |delta, e| (delta * e) % o)
     /// } else {
-    ///     eps.iter().fold(BigUint::from(1u32), |prod, e| prod * e)
+    ///     eps.iter().fold(BigUint::from(1u32), |delta, e| delta * e)
     /// };
     /// let delta_int = BigInt::from(delta);
     /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
@@ -629,9 +629,9 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
     fn non_mem_proof_create(
         &self,
         element: &Self::Element,
-        prod: &Self::NonMembershipProduct,
+        delta: &Self::NonMembershipProduct,
     ) -> Self::NonMembershipProof {
-        self.non_mem_proof_create(element, prod)
+        self.non_mem_proof_create(element, delta)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
@@ -825,9 +825,9 @@ mod trapdoored_tests {
         let delta = if let Some(o) = acc.group.order() {
             elements_in
                 .iter()
-                .fold(BigUint::one(), |prod, e| (prod * e) % o)
+                .fold(BigUint::one(), |delta, e| (delta * e) % o)
         } else {
-            elements_in.iter().fold(BigUint::one(), |prod, e| prod * e)
+            elements_in.iter().fold(BigUint::one(), |delta, e| delta * e)
         };
         let delta_int = delta.to_bigint().unwrap();
 
@@ -1013,9 +1013,9 @@ mod trapdoorless_tests {
         let delta = if let Some(o) = acc.group.order() {
             elements_in
                 .iter()
-                .fold(BigUint::one(), |prod, e| (prod * e) % o)
+                .fold(BigUint::one(), |delta, e| (delta * e) % o)
         } else {
-            elements_in.iter().fold(BigUint::one(), |prod, e| prod * e)
+            elements_in.iter().fold(BigUint::one(), |delta, e| delta * e)
         };
         let delta_int = delta.to_bigint().unwrap();
 
