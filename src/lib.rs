@@ -1,19 +1,29 @@
-//! Privacy-Preserving Accumulator Proofs
+//! Private Accumulator Proof Delegation.
 //!
-//! This library provides implementations of cryptographic accumulators
+//! This library provides implementations of cryptographic accumulators with
+//! support for privacy-preserving (blinded) proof updates.
 //!
-//! ## Features
+//! # Cargo features
 //!
-//! - `rsa`: RSA-based accumulator implementation
-//! - `bilinear`: Bilinear pairing-based accumulator implementation
+//! - `rsa` *(default)* — RSA-group and class-group based accumulators.
+//! - `bilinear` *(default)* — KZG / bilinear-pairing based accumulator.
+//! - `class-group` — class-group (`class_group`/`curv-kzen`) backend for the
+//!   RSA-style accumulator. Off by default because `curv` brings a number of
+//!   transitive dependencies.
 //!
-//! ## Example
+//! # Example
 //!
-//! ```rust,ignore
-//! use privacy_preserving_accumulators::RsaAccumulator;
+//! ```no_run
+//! use num_bigint::BigUint;
+//! use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
 //!
-//! let mut acc = RsaAccumulator::setup();
+//! let mut acc = RsaAccumulator::<RsaGroup>::setup();
+//! let ep = acc.add(&BigUint::from(7u32));
+//! let proof = acc.mem_proof_create(&ep).unwrap();
+//! assert!(acc.mem_ver(&proof, &ep));
 //! ```
+
+pub mod error;
 
 #[cfg(feature = "rsa")]
 pub mod rsa_accumulator;
@@ -24,10 +34,12 @@ pub mod groups;
 #[cfg(feature = "bilinear")]
 pub mod bilinear_accumulator;
 
+#[cfg(feature = "rsa")]
 pub mod math;
 pub mod nizk;
 pub mod traits;
 
+pub use error::{AccumulatorError, AccumulatorResult};
 pub use traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 
 #[cfg(feature = "rsa")]
