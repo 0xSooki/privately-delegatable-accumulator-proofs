@@ -1,4 +1,5 @@
 use super::{Aux, RsaAccumulator, UpdatedBlindProof};
+use crate::error::{AccumulatorError, AccumulatorResult};
 use crate::groups::rsa_group::{RsaGroup, MODULUS_SIZE};
 use crate::nizk::NIZK;
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
@@ -21,7 +22,7 @@ impl RsaAccumulator<RsaGroup> {
     /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup();
     /// let ep = acc.add(&BigUint::from(7u32));
-    /// let proof = acc.mem_proof_create(&ep);
+    /// let proof = acc.mem_proof_create(&ep).unwrap();
     /// assert!(acc.mem_ver(&proof, &ep));
     /// ```
     pub fn setup() -> Self {
@@ -74,7 +75,7 @@ impl RsaAccumulator<RsaGroup> {
     /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
     /// let ep = acc.add(&BigUint::from(7u32));
-    /// let proof = acc.mem_proof_create(&ep);
+    /// let proof = acc.mem_proof_create(&ep).unwrap();
     /// assert!(acc.mem_ver(&proof, &ep));
     /// ```
     pub fn setup_trapdoorless() -> Self {
@@ -108,7 +109,7 @@ impl RsaAccumulator<RsaGroup> {
     /// );
     /// acc.set_group_order(Some(BigUint::from(3120u32)));
     /// let ep = acc.add(&BigUint::from(7u32));
-    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep), &ep));
+    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep).unwrap(), &ep));
     /// ```
     pub fn set_group_order(&mut self, order: Option<BigUint>) {
         self.group.set_order(order);
@@ -130,7 +131,7 @@ impl RsaAccumulator<RsaGroup> {
     /// );
     /// acc.clear_group_order();
     /// let ep = acc.add(&BigUint::from(7u32));
-    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep), &ep));
+    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep).unwrap(), &ep));
     /// ```
     pub fn clear_group_order(&mut self) {
         self.group.set_order(None);
@@ -183,9 +184,11 @@ impl RsaAccumulator<RsaGroup> {
     /// assert_eq!(acc.value(), &initial);
     /// ```
     pub fn del(&mut self, element: &BigUint) {
-        if self.set.remove(&element) {
+        if self.set.remove(element) {
             if let Some(o) = self.group.order() {
-                let x_mod_inv = element.modinv(&o).unwrap();
+                let x_mod_inv = element
+                    .modinv(o)
+                    .expect("modinv exists because element is coprime with the group order");
                 self.acc = self.group.exp(&self.acc, &x_mod_inv);
             } else {
                 let product = self.calculate_product();
@@ -195,6 +198,11 @@ impl RsaAccumulator<RsaGroup> {
     }
 
     /// Creates a membership proof for an element in the accumulator.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccumulatorError::ElementNotInSet`] if `element` is not in
+    /// the accumulator set.
     ///
     /// # Examples
     ///
@@ -210,26 +218,34 @@ impl RsaAccumulator<RsaGroup> {
     /// );
     /// let ep = acc.add(&BigUint::from(7u32));
     /// acc.add(&BigUint::from(11u32));
-    /// let proof = acc.mem_proof_create(&ep);
+    /// let proof = acc.mem_proof_create(&ep).unwrap();
     /// assert!(acc.mem_ver(&proof, &ep));
     /// ```
-    pub fn mem_proof_create(&self, element: &BigUint) -> BigUint {
-        if !self.set.contains(&element) {
-            panic!("Element not in accumulator set");
+    pub fn mem_proof_create(&self, element: &BigUint) -> AccumulatorResult<BigUint> {
+        if !self.set.contains(element) {
+            return Err(AccumulatorError::ElementNotInSet);
         }
 
-        if let Some(o) = self.group.order() {
-            let x_mod_inv = element.modinv(&o).unwrap();
+        let proof = if let Some(o) = self.group.order() {
+            let x_mod_inv = element
+                .modinv(o)
+                .expect("modinv exists because element is coprime with the group order");
             self.group.exp(&self.acc, &x_mod_inv)
         } else {
             let product = self.set.iter().filter(|&e| e != element).product();
             self.group.exp(&self.group.g(), &product)
-        }
+        };
+        Ok(proof)
     }
 
     /// Creates a non-membership proof for an element not in the accumulator.
     ///
     /// `delta` must be the product of all prime elements currently in the accumulator set.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccumulatorError::NotCoprime`] if `element` is not coprime
+    /// with `delta` (including the case where it is already a member).
     ///
     /// # Examples
     ///
@@ -247,29 +263,32 @@ impl RsaAccumulator<RsaGroup> {
     /// acc.add(&BigUint::from(3u32));
     /// let non_member = BigUint::from(5u32);
     /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
-    /// let proof = acc.non_mem_proof_create(&non_member, &product);
+    /// let proof = acc.non_mem_proof_create(&non_member, &product).unwrap();
     /// assert!(acc.non_mem_ver(&proof, &non_member));
     /// ```
-    pub fn non_mem_proof_create(&self, element: &BigUint, delta: &BigInt) -> (BigInt, BigUint) {
+    pub fn non_mem_proof_create(
+        &self,
+        element: &BigUint,
+        delta: &BigInt,
+    ) -> AccumulatorResult<(BigInt, BigUint)> {
         let x_prime_int = BigInt::from(element.clone());
 
         let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(delta, &x_prime_int);
-        assert_eq!(
-            gcd,
-            BigInt::one(),
-            "non-member prime must be coprime with accumulator set product"
-        );
+        if gcd != BigInt::one() {
+            return Err(AccumulatorError::NotCoprime);
+        }
 
-        if let Some(o) = self.group.order() {
-            let totient_int = o.to_bigint().unwrap();
+        let proof = if let Some(o) = self.group.order() {
+            let totient_int = o.to_bigint().expect("BigUint always converts to BigInt");
             let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
             let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)
                 .to_biguint()
-                .unwrap();
+                .expect("value was reduced into [0, totient) so it is non-negative");
             (a_mod, self.group.exp(&self.group.g(), &b_mod))
         } else {
             (a, self.group.signed_exp(&self.group.g(), &b))
-        }
+        };
+        Ok(proof)
     }
 
     /// Verifies a non-membership proof for a given element.
@@ -290,7 +309,7 @@ impl RsaAccumulator<RsaGroup> {
     /// acc.add(&BigUint::from(3u32));
     /// let non_member = BigUint::from(5u32);
     /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
-    /// let proof = acc.non_mem_proof_create(&non_member, &product);
+    /// let proof = acc.non_mem_proof_create(&non_member, &product).unwrap();
     /// assert!(acc.non_mem_ver(&proof, &non_member));
     /// ```
     pub fn non_mem_ver(&self, proof: &(BigInt, BigUint), element: &BigUint) -> bool {
@@ -317,7 +336,7 @@ impl RsaAccumulator<RsaGroup> {
     /// );
     /// let ep = acc.add(&BigUint::from(7u32));
     /// let acc_t = acc.value().clone();
-    /// let proof = acc.mem_proof_create(&ep);
+    /// let proof = acc.mem_proof_create(&ep).unwrap();
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
     /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
@@ -327,7 +346,7 @@ impl RsaAccumulator<RsaGroup> {
     ///     eps.iter().fold(BigUint::from(1u32), |delta, e| delta * e)
     /// };
     /// let delta_int = BigInt::from(delta);
-    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
+    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int).unwrap();
     /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
     /// ```
     pub fn blind_mem_proof_upd(
@@ -335,10 +354,8 @@ impl RsaAccumulator<RsaGroup> {
         acc_t: &BigUint,
         blinded_proof: &BigUint,
         delta: &BigInt,
-    ) -> UpdatedBlindProof {
-        let delta_uint = delta
-            .to_biguint()
-            .expect("delta must be non-negative for membership proof update");
+    ) -> AccumulatorResult<UpdatedBlindProof> {
+        let delta_uint = delta.to_biguint().ok_or(AccumulatorError::NegativeDelta)?;
 
         let acc_t_prime = &self.acc;
         let a = self.group.exp(blinded_proof, &delta_uint);
@@ -351,7 +368,7 @@ impl RsaAccumulator<RsaGroup> {
 
         let upd_blinded_proof = (a, b);
         let aux = (pi1, pi2);
-        (upd_blinded_proof, aux, self.acc.clone())
+        Ok((upd_blinded_proof, aux, self.acc.clone()))
     }
 
     /// Verifies that a blinded membership proof was correctly updated using NIZK proofs.
@@ -370,7 +387,7 @@ impl RsaAccumulator<RsaGroup> {
     /// );
     /// let ep = acc.add(&BigUint::from(7u32));
     /// let acc_t = acc.value().clone();
-    /// let proof = acc.mem_proof_create(&ep);
+    /// let proof = acc.mem_proof_create(&ep).unwrap();
     /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
     /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
@@ -380,7 +397,7 @@ impl RsaAccumulator<RsaGroup> {
     ///     eps.iter().fold(BigUint::from(1u32), |delta, e| delta * e)
     /// };
     /// let delta_int = BigInt::from(delta);
-    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int);
+    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int).unwrap();
     /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
     /// ```
     pub fn ver_blind_mem_proof_upd(
@@ -436,7 +453,7 @@ impl RsaAccumulator<RsaGroup> {
                 .group
                 .hash_to_prime(seed.to_bytes_be().as_slice())
                 .to_biguint()
-                .unwrap();
+                .expect("hash_to_prime always returns a positive prime");
 
             let blinded_non_mem_proof = element * &q;
             (blinded_non_mem_proof, q)
@@ -444,6 +461,11 @@ impl RsaAccumulator<RsaGroup> {
     }
 
     /// Updates a blinded non-membership proof after accumulator changes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccumulatorError::NotCoprime`] if the blinded value shares
+    /// a prime factor with `delta`.
     ///
     /// # Examples
     ///
@@ -460,7 +482,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// // With an empty set, the accumulator value is g and delta = 1.
     /// let blinded_non_member = BigUint::from(17u32);
-    /// let updated = acc.blind_non_mem_proof_upd(&blinded_non_member, &BigInt::from(1u32));
+    /// let updated = acc.blind_non_mem_proof_upd(&blinded_non_member, &BigInt::from(1u32)).unwrap();
     ///
     /// assert!(acc.ver_blind_non_mem_proof_upd(
     ///     acc.value(),
@@ -472,25 +494,24 @@ impl RsaAccumulator<RsaGroup> {
         &self,
         blinded_non_mem_proof: &BigUint,
         delta: &BigInt,
-    ) -> (BigInt, BigUint) {
+    ) -> AccumulatorResult<(BigInt, BigUint)> {
         let blinded_int = BigInt::from(blinded_non_mem_proof.clone());
         let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(delta, &blinded_int);
-        assert_eq!(
-            gcd,
-            BigInt::one(),
-            "blinded value must be coprime with accumulator set product"
-        );
+        if gcd != BigInt::one() {
+            return Err(AccumulatorError::NotCoprime);
+        }
 
-        if let Some(t) = self.group.order() {
-            let totient_int = t.to_bigint().unwrap();
+        let proof = if let Some(t) = self.group.order() {
+            let totient_int = t.to_bigint().expect("BigUint always converts to BigInt");
             let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
             let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)
                 .to_biguint()
-                .unwrap();
+                .expect("value was reduced into [0, totient) so it is non-negative");
             (a_mod, self.group.exp(&self.group.g(), &b_mod))
         } else {
             (a, self.group.signed_exp(&self.group.g(), &b))
-        }
+        };
+        Ok(proof)
     }
 
     /// Verifies that a blinded non-membership proof was correctly updated.
@@ -509,7 +530,7 @@ impl RsaAccumulator<RsaGroup> {
     /// );
     /// let non_member = BigUint::from(17u32);
     /// let blinded = acc.blind_non_mem_proof(&non_member);
-    /// let upd = acc.blind_non_mem_proof_upd(&blinded.0, &BigInt::from(1i32));
+    /// let upd = acc.blind_non_mem_proof_upd(&blinded.0, &BigInt::from(1i32)).unwrap();
     /// assert!(acc.ver_blind_non_mem_proof_upd(acc.value(), &blinded.0, &upd));
     /// ```
     pub fn ver_blind_non_mem_proof_upd(
@@ -544,7 +565,7 @@ impl RsaAccumulator<RsaGroup> {
     /// let (blinded, q) = acc.blind_non_mem_proof(&non_member);
     /// acc.add(&BigUint::from(5u32));
     /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
-    /// let upd = acc.blind_non_mem_proof_upd(&blinded, &product);
+    /// let upd = acc.blind_non_mem_proof_upd(&blinded, &product).unwrap();
     /// let proof = acc.unblind_non_mem_proof(&q, &upd);
     /// assert!(acc.non_mem_ver(&proof, &non_member));
     /// ```
@@ -614,7 +635,7 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
     fn mem_proof_create(
         &self,
         element: &<Self::Group as Group>::Exponent,
-    ) -> Self::MembershipProof {
+    ) -> AccumulatorResult<Self::MembershipProof> {
         self.mem_proof_create(element)
     }
 
@@ -630,7 +651,7 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
         &self,
         element: &Self::Element,
         delta: &Self::NonMembershipProduct,
-    ) -> Self::NonMembershipProof {
+    ) -> AccumulatorResult<Self::NonMembershipProof> {
         self.non_mem_proof_create(element, delta)
     }
 
@@ -660,11 +681,11 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         acc_t: &<Self::Group as Group>::Element,
         blinded_proof: &Self::BlindedMembershipProof,
         delta: &Self::Delta,
-    ) -> (
+    ) -> AccumulatorResult<(
         Self::UpdatedBlindedMembershipProof,
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
-    ) {
+    )> {
         self.blind_mem_proof_upd(acc_t, blinded_proof, delta)
     }
 
@@ -694,7 +715,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
-    ) -> Self::UpdatedBlindedNonMembershipProof {
+    ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
         self.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, delta)
     }
 
@@ -751,7 +772,7 @@ mod trapdoored_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         assert!(acc.mem_ver(&proof, &ep));
     }
@@ -766,10 +787,12 @@ mod trapdoored_tests {
 
         let non_member = BigUint::from(5u32);
 
-        let proof = acc.non_mem_proof_create(
-            &non_member,
-            &acc.calculate_product_unreduced().to_bigint().unwrap(),
-        );
+        let proof = acc
+            .non_mem_proof_create(
+                &non_member,
+                &acc.calculate_product_unreduced().to_bigint().unwrap(),
+            )
+            .unwrap();
         assert!(
             acc.non_mem_ver(&proof, &non_member),
             "Non-membership proof should verify"
@@ -787,7 +810,7 @@ mod trapdoored_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
@@ -811,7 +834,7 @@ mod trapdoored_tests {
 
         let acct = acc.acc.clone();
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         let elements_in = vec![
             BigUint::from(65537u32),
@@ -827,13 +850,17 @@ mod trapdoored_tests {
                 .iter()
                 .fold(BigUint::one(), |delta, e| (delta * e) % o)
         } else {
-            elements_in.iter().fold(BigUint::one(), |delta, e| delta * e)
+            elements_in
+                .iter()
+                .fold(BigUint::one(), |delta, e| delta * e)
         };
         let delta_int = delta.to_bigint().unwrap();
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
-        let upd_blind_proof = acc.blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int);
+        let upd_blind_proof = acc
+            .blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int)
+            .unwrap();
 
         assert!(acc.ver_blind_mem_proof_upd(
             &acct,
@@ -859,10 +886,12 @@ mod trapdoored_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(
-            &blinded_proof.0,
-            &BigInt::from(acc.calculate_product_unreduced()),
-        );
+        let upd_blind_non_mem_proof = acc
+            .blind_non_mem_proof_upd(
+                &blinded_proof.0,
+                &BigInt::from(acc.calculate_product_unreduced()),
+            )
+            .unwrap();
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
@@ -893,10 +922,12 @@ mod trapdoored_tests {
 
         let acctprime = acc.acc.clone();
 
-        let upd_blind_proof = acc.blind_non_mem_proof_upd(
-            &blinded_proof.0,
-            &BigInt::from(acc.calculate_product_unreduced()),
-        );
+        let upd_blind_proof = acc
+            .blind_non_mem_proof_upd(
+                &blinded_proof.0,
+                &BigInt::from(acc.calculate_product_unreduced()),
+            )
+            .unwrap();
 
         assert!(
             acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof),
@@ -937,7 +968,7 @@ mod trapdoorless_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         assert!(acc.mem_ver(&proof, &ep));
     }
@@ -952,10 +983,12 @@ mod trapdoorless_tests {
 
         let non_member = BigUint::from(5u32);
 
-        let proof = acc.non_mem_proof_create(
-            &non_member,
-            &(acc.calculate_product_unreduced().to_bigint().unwrap()),
-        );
+        let proof = acc
+            .non_mem_proof_create(
+                &non_member,
+                &(acc.calculate_product_unreduced().to_bigint().unwrap()),
+            )
+            .unwrap();
         assert!(
             acc.non_mem_ver(&proof, &non_member),
             "Non-membership proof should verify"
@@ -973,7 +1006,7 @@ mod trapdoorless_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
@@ -997,7 +1030,7 @@ mod trapdoorless_tests {
 
         let acct = acc.acc.clone();
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         let blinded_proof = acc.blind_mem_proof(&proof);
 
@@ -1015,11 +1048,15 @@ mod trapdoorless_tests {
                 .iter()
                 .fold(BigUint::one(), |delta, e| (delta * e) % o)
         } else {
-            elements_in.iter().fold(BigUint::one(), |delta, e| delta * e)
+            elements_in
+                .iter()
+                .fold(BigUint::one(), |delta, e| delta * e)
         };
         let delta_int = delta.to_bigint().unwrap();
 
-        let upd_blind_proof = acc.blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int);
+        let upd_blind_proof = acc
+            .blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int)
+            .unwrap();
 
         assert!(acc.ver_blind_mem_proof_upd(
             &acct,
@@ -1045,10 +1082,12 @@ mod trapdoorless_tests {
             acc.add(&BigUint::from(i as usize));
         }
 
-        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(
-            &blinded_proof.0,
-            &BigInt::from(acc.calculate_product_unreduced()),
-        );
+        let upd_blind_non_mem_proof = acc
+            .blind_non_mem_proof_upd(
+                &blinded_proof.0,
+                &BigInt::from(acc.calculate_product_unreduced()),
+            )
+            .unwrap();
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
@@ -1079,10 +1118,12 @@ mod trapdoorless_tests {
 
         let acctprime = acc.acc.clone();
 
-        let upd_blind_proof = acc.blind_non_mem_proof_upd(
-            &blinded_proof.0,
-            &BigInt::from(acc.calculate_product_unreduced()),
-        );
+        let upd_blind_proof = acc
+            .blind_non_mem_proof_upd(
+                &blinded_proof.0,
+                &BigInt::from(acc.calculate_product_unreduced()),
+            )
+            .unwrap();
 
         assert!(
             acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof),

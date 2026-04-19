@@ -1,3 +1,4 @@
+use crate::error::AccumulatorResult;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -43,7 +44,7 @@ pub trait Group: Clone + Debug {
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent;
 }
 
-/// Trait for accumulators with membership proofs
+/// Trait for accumulators with (non-)membership proofs.
 pub trait Accumulator {
     type Group: Group;
     type Element;
@@ -63,9 +64,14 @@ pub trait Accumulator {
     /// Get the current accumulator value
     fn value(&self) -> &<Self::Group as Group>::Element;
 
-    /// Create a membership proof for an element
-    fn mem_proof_create(&self, element: &<Self::Group as Group>::Exponent)
-        -> Self::MembershipProof;
+    /// Create a membership proof for an element.
+    ///
+    /// Returns [`AccumulatorError::ElementNotInSet`] if the element is not in
+    /// the accumulator.
+    fn mem_proof_create(
+        &self,
+        element: &<Self::Group as Group>::Exponent,
+    ) -> AccumulatorResult<Self::MembershipProof>;
 
     /// Verify a membership proof
     fn mem_ver(
@@ -74,12 +80,16 @@ pub trait Accumulator {
         element: &<Self::Group as Group>::Exponent,
     ) -> bool;
 
-    /// Create a non-membership proof for an element
+    /// Create a non-membership proof for an element.
+    ///
+    /// Returns [`AccumulatorError::NotCoprime`] if the element shares a
+    /// prime factor with the accumulator set product (including the case
+    /// where it is already a member).
     fn non_mem_proof_create(
         &self,
         element: &Self::Element,
         prod: &Self::NonMembershipProduct,
-    ) -> Self::NonMembershipProof;
+    ) -> AccumulatorResult<Self::NonMembershipProof>;
 
     /// Verify a non-membership proof
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool;
@@ -100,17 +110,19 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
         proof: &Self::MembershipProof,
     ) -> (Self::BlindedMembershipProof, Self::MembershipBlindingFactor);
 
-    /// Update a blinded membership proof
+    /// Update a blinded membership proof.
+    ///
+    /// Returns [`AccumulatorError::NegativeDelta`] if `delta` is negative.
     fn blind_mem_proof_upd(
         &self,
         acc_t: &<Self::Group as Group>::Element,
         blinded_proof: &Self::BlindedMembershipProof,
         delta: &Self::Delta,
-    ) -> (
+    ) -> AccumulatorResult<(
         Self::UpdatedBlindedMembershipProof,
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
-    );
+    )>;
 
     /// Verify an updated blinded membership proof
     fn ver_blind_mem_proof_upd(
@@ -131,11 +143,15 @@ pub trait PrivatelyDelegatableAccumulator: Accumulator {
     /// Blind a non-membership proof
     fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof;
 
+    /// Update a blinded non-membership proof.
+    ///
+    /// Returns [`AccumulatorError::NotCoprime`] if the blinded value shares
+    /// a prime factor with the accumulator set product.
     fn blind_non_mem_proof_upd(
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
-    ) -> Self::UpdatedBlindedNonMembershipProof;
+    ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof>;
 
     fn ver_blind_non_mem_proof_upd(
         &self,

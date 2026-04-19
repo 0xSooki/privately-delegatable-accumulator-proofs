@@ -1,4 +1,5 @@
 use super::RsaAccumulator;
+use crate::error::{AccumulatorError, AccumulatorResult};
 use crate::groups::class_group::{
     ClassGroup, ClassGroupElement, ClassGroupExponent, DISC_SIZE, PARI_STACK_SIZE_BYTES,
 };
@@ -63,9 +64,12 @@ impl RsaAccumulator<ClassGroup> {
         }
     }
 
-    pub fn mem_proof_create(&self, element: &ClassGroupExponent) -> ClassGroupElement {
+    pub fn mem_proof_create(
+        &self,
+        element: &ClassGroupExponent,
+    ) -> AccumulatorResult<ClassGroupElement> {
         if !self.set.contains(element) {
-            panic!("Element not in accumulator set");
+            return Err(AccumulatorError::ElementNotInSet);
         }
 
         let product = self
@@ -74,24 +78,22 @@ impl RsaAccumulator<ClassGroup> {
             .filter(|e| *e != element)
             .fold(ClassGroup::exp_id(), |acc, e| ClassGroup::exp_mul(&acc, e));
 
-        self.group.exp(&self.group.g(), &product)
+        Ok(self.group.exp(&self.group.g(), &product))
     }
 
     pub fn non_mem_proof_create(
         &self,
         element: &ClassGroupExponent,
         prod: &BigInt,
-    ) -> (BigInt, ClassGroupElement) {
+    ) -> AccumulatorResult<(BigInt, ClassGroupElement)> {
         let x_int = class_exp_to_num(element);
 
         let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(prod, &x_int);
-        assert_eq!(
-            gcd,
-            BigInt::one(),
-            "non-member prime must be coprime with accumulator set product"
-        );
+        if gcd != BigInt::one() {
+            return Err(AccumulatorError::NotCoprime);
+        }
 
-        (a, class_group_signed_exp(&self.group, &self.group.g(), &b))
+        Ok((a, class_group_signed_exp(&self.group, &self.group.g(), &b)))
     }
 
     pub fn non_mem_ver(
@@ -109,11 +111,15 @@ impl RsaAccumulator<ClassGroup> {
         acc_t: &ClassGroupElement,
         blinded_proof: &ClassGroupElement,
         delta: &BigInt,
-    ) -> (
+    ) -> AccumulatorResult<(
         (ClassGroupElement, ClassGroupElement),
         ClassGroupAux,
         ClassGroupElement,
-    ) {
+    )> {
+        if delta < &BigInt::zero() {
+            return Err(AccumulatorError::NegativeDelta);
+        }
+
         let delta_exp = ClassGroupExponent(delta.clone());
 
         let acc_t_prime = &self.acc;
@@ -125,7 +131,7 @@ impl RsaAccumulator<ClassGroup> {
         let pi1 = nizk.prove_dleq(blinded_proof, &a, acc_t, acc_t_prime, &delta_exp);
         let pi2 = nizk.prove_dleq(&g, &b, blinded_proof, &a, &delta_exp);
 
-        ((a, b), (pi1, pi2), self.acc.clone())
+        Ok(((a, b), (pi1, pi2), self.acc.clone()))
     }
 
     pub fn ver_blind_mem_proof_upd(
@@ -172,16 +178,14 @@ impl RsaAccumulator<ClassGroup> {
         &self,
         blinded_non_mem_proof: &ClassGroupExponent,
         delta: &BigInt,
-    ) -> (BigInt, ClassGroupElement) {
+    ) -> AccumulatorResult<(BigInt, ClassGroupElement)> {
         let blinded_int = class_exp_to_num(blinded_non_mem_proof);
         let ExtendedGcd { gcd, x: a, y: b } = Integer::extended_gcd(delta, &blinded_int);
-        assert_eq!(
-            gcd,
-            BigInt::one(),
-            "blinded value must be coprime with accumulator set product"
-        );
+        if gcd != BigInt::one() {
+            return Err(AccumulatorError::NotCoprime);
+        }
 
-        (a, class_group_signed_exp(&self.group, &self.group.g(), &b))
+        Ok((a, class_group_signed_exp(&self.group, &self.group.g(), &b)))
     }
 
     pub fn ver_blind_non_mem_proof_upd(
@@ -242,7 +246,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     fn mem_proof_create(
         &self,
         element: &<Self::Group as Group>::Exponent,
-    ) -> Self::MembershipProof {
+    ) -> AccumulatorResult<Self::MembershipProof> {
         self.mem_proof_create(element)
     }
 
@@ -258,7 +262,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
         &self,
         element: &Self::Element,
         prod: &Self::NonMembershipProduct,
-    ) -> Self::NonMembershipProof {
+    ) -> AccumulatorResult<Self::NonMembershipProof> {
         self.non_mem_proof_create(element, prod)
     }
 
@@ -288,11 +292,11 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         acc_t: &<Self::Group as Group>::Element,
         blinded_proof: &Self::BlindedMembershipProof,
         delta: &Self::Delta,
-    ) -> (
+    ) -> AccumulatorResult<(
         Self::UpdatedBlindedMembershipProof,
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
-    ) {
+    )> {
         self.blind_mem_proof_upd(acc_t, blinded_proof, delta)
     }
 
@@ -322,7 +326,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         &self,
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
-    ) -> Self::UpdatedBlindedNonMembershipProof {
+    ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
         self.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, delta)
     }
 
@@ -381,7 +385,7 @@ mod tests {
             acc.add(&i);
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
         assert!(acc.mem_ver(&proof, &ep));
     }
 
@@ -396,7 +400,7 @@ mod tests {
         let non_member = hash_input(&acc, 5u32);
 
         let prod = acc.calculate_product_unreduced();
-        let proof = acc.non_mem_proof_create(&non_member, &prod);
+        let proof = acc.non_mem_proof_create(&non_member, &prod).unwrap();
         assert!(
             acc.non_mem_ver(&proof, &non_member),
             "Non-membership proof should verify"
@@ -414,7 +418,7 @@ mod tests {
             acc.add(&i);
         }
 
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
         let blinded_proof = acc.blind_mem_proof(&proof);
 
         assert!(
@@ -435,7 +439,7 @@ mod tests {
 
         let ep = acc.add(&200003u32);
         let acc_t = acc.acc.clone();
-        let proof = acc.mem_proof_create(&ep);
+        let proof = acc.mem_proof_create(&ep).unwrap();
 
         let elements_in = vec![65537u32, 100003u32, 104729u32, 1299709u32, 15485863u32]
             .iter()
@@ -449,7 +453,9 @@ mod tests {
             .0;
 
         let blinded_proof = acc.blind_mem_proof(&proof);
-        let upd_blind_proof = acc.blind_mem_proof_upd(&acc_t, &blinded_proof.0, &delta);
+        let upd_blind_proof = acc
+            .blind_mem_proof_upd(&acc_t, &blinded_proof.0, &delta)
+            .unwrap();
 
         assert!(acc.ver_blind_mem_proof_upd(
             &acc_t,
@@ -475,7 +481,9 @@ mod tests {
         }
 
         let delta = acc.calculate_product_unreduced();
-        let upd_blind_non_mem_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0, &delta);
+        let upd_blind_non_mem_proof = acc
+            .blind_non_mem_proof_upd(&blinded_proof.0, &delta)
+            .unwrap();
 
         let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
@@ -499,7 +507,9 @@ mod tests {
 
         let acc_t_prime = acc.acc.clone();
         let delta = acc.calculate_product_unreduced();
-        let upd_blind_proof = acc.blind_non_mem_proof_upd(&blinded_proof.0, &delta);
+        let upd_blind_proof = acc
+            .blind_non_mem_proof_upd(&blinded_proof.0, &delta)
+            .unwrap();
 
         assert!(
             acc.ver_blind_non_mem_proof_upd(&acc_t_prime, &blinded_proof.0, &upd_blind_proof),
