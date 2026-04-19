@@ -11,7 +11,7 @@ homepage = "https://github.com/GlaszBoti/privacy-preserving-accumulator-proofs"
 documentation = "https://docs.rs/privacy-preserving-accumulators"
 readme = "README.md"
 keywords = ["cryptography", "accumulator", "zero-knowledge", "rsa", "pairing"]
-categories = ["cryptography", "no-std::no-alloc"]
+categories = ["cryptography"]
 exclude = [
     "benches/*",
     "data_for_latex/*",
