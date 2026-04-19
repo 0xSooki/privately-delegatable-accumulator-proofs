@@ -2,6 +2,25 @@
 name = "privacy-preserving-accumulators"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
+authors = ["0xSooki <0xsooki@gmail.com>"]
+description = "Cryptographic accumulators with privacy-preserving (blinded) proof updates. Supports RSA, class-group, and bilinear-pairing constructions."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/GlaszBoti/privacy-preserving-accumulator-proofs"
+homepage = "https://github.com/GlaszBoti/privacy-preserving-accumulator-proofs"
+documentation = "https://docs.rs/privacy-preserving-accumulators"
+readme = "README.md"
+keywords = ["cryptography", "accumulator", "zero-knowledge", "rsa", "pairing"]
+categories = ["cryptography", "no-std::no-alloc"]
+exclude = [
+    "benches/*",
+    "data_for_latex/*",
+    "figures/*",
+    "misc/*",
+    "update_breakdown.tikz",
+    "Makefile.toml",
+    ".github/*",
+]
 
 [features]
 default = ["rsa", "bilinear"]
@@ -11,6 +30,9 @@ class-group = ["class_group", "curv"]
 
 [dependencies]
 rand = "0.8"
+sha256 = "1.6"
+sha2 = "0.9"
+hmac = "0.11"
 
 num-bigint = { version = "0.4", features = ["rand"], optional = true }
 num-traits = { version = "0.2", optional = true }
@@ -23,14 +45,15 @@ ark-std = { version = "0.4", optional = true }
 ark-poly = { version = "0.4", optional = true }
 ark-poly-commit = { version = "0.4", optional = true }
 ark-bls12-381 = { version = "0.4", optional = true }
-Gen_Prime = "=1.1.9"
-rust-miller-rabin = "0.1.4"
-sha256 = "1.6.0"
-sha2 = "0.9"
+
+Gen_Prime = "1.1"
+rust-miller-rabin = "0.1"
+
+class_group = { version = "0.6.1", optional = true }
+curv = { package = "curv-kzen", version = "0.10", default-features = false, optional = true }
+
+[dev-dependencies]
 criterion = "0.5"
-class_group = {version = "0.6.1", optional = true}
-curv = { package = "curv-kzen", version = "0.10", default-features = false, optional = true}
-hmac = "0.11"
 
 [[bench]]
 name = "bench_rsa"
