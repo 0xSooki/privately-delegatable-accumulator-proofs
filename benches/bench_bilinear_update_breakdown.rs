@@ -226,7 +226,7 @@ fn prepare_rsa_mem_context() -> RsaMemContext {
         acc.add(&v);
     }
 
-    let proof = acc.mem_proof_create(&ep);
+    let proof = acc.mem_proof_create(&ep).unwrap();
     let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
     let acc_t = acc.acc.clone();
 
@@ -313,7 +313,7 @@ fn prepare_class_mem_context() -> ClassMemContext {
         acc.add(&v);
     }
 
-    let proof = acc.mem_proof_create(&ep);
+    let proof = acc.mem_proof_create(&ep).unwrap();
     let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
     let acc_t = acc.acc.clone();
 

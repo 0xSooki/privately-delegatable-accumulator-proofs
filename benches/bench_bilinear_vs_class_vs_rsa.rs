@@ -1,3 +1,5 @@
+#![allow(unused_must_use)]
+
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_ff::Zero;
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
@@ -242,7 +244,9 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                         || {
                             let mut acc = base_acc_rsa.clone();
                             let acc_t = acc.acc.clone();
-                            let proof = acc.mem_proof_create(&ep_rsa);
+                            let proof = acc
+                                .mem_proof_create(&ep_rsa)
+                                .expect("rsa trapdoorless membership proof");
                             let blinded_proof = acc.blind_mem_proof(&proof);
                             let elements_in = rsa_update_elements.clone();
                             for elem in &elements_in {
@@ -282,7 +286,9 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                         || {
                             let mut acc = base_acc_rsa_td.clone();
                             let acc_t = acc.acc.clone();
-                            let proof = acc.mem_proof_create(&ep_rsa_td);
+                            let proof = acc
+                                .mem_proof_create(&ep_rsa_td)
+                                .expect("rsa trapdoored membership proof");
                             let blinded_proof = acc.blind_mem_proof(&proof);
                             let elements_in = rsa_td_update_elements.clone();
                             for elem in &elements_in {
@@ -322,7 +328,9 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                         || {
                             let mut acc = base_acc_class.clone();
                             let acc_t = acc.acc.clone();
-                            let proof = acc.mem_proof_create(&ep_class);
+                            let proof = acc
+                                .mem_proof_create(&ep_class)
+                                .expect("class-group membership proof");
                             let blinded_proof = acc.blind_mem_proof(&proof);
                             let elements_in = class_update_elements.clone();
                             for elem in &elements_in {
