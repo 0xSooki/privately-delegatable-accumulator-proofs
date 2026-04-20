@@ -4,8 +4,8 @@ use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_std::test_rng;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 #[cfg(feature = "class-group")]
-use privacy_preserving_accumulators::groups::ClassGroup;
-use privacy_preserving_accumulators::{
+use private_accumulator_proof_delegation::groups::ClassGroup;
+use private_accumulator_proof_delegation::{
     groups::RsaGroup, BilinearAccumulator, Group, RsaAccumulator,
 };
 

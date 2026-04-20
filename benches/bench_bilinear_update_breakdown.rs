@@ -10,11 +10,11 @@ use curv::BigInt as CurvBigInt;
 use num_bigint::{BigInt as NumBigInt, BigUint};
 use num_integer::Integer;
 #[cfg(feature = "class-group")]
-use privacy_preserving_accumulators::groups::{
+use private_accumulator_proof_delegation::groups::{
     class_group::{ClassGroupElement, ClassGroupExponent},
     ClassGroup,
 };
-use privacy_preserving_accumulators::{
+use private_accumulator_proof_delegation::{
     groups::RsaGroup,
     nizk::{BilinearNIZK, NIZK},
     BilinearAccumulator, Group, RsaAccumulator,

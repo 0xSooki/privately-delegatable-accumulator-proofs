@@ -15,7 +15,7 @@
 //!
 //! ```no_run
 //! use num_bigint::BigUint;
-//! use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+//! use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
 //!
 //! let mut acc = RsaAccumulator::<RsaGroup>::setup();
 //! let ep = acc.add(&BigUint::from(7u32));

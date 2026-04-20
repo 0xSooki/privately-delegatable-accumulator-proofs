@@ -17,7 +17,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust,no_run
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup();
@@ -48,7 +48,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -70,7 +70,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust,no_run
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
@@ -99,7 +99,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -121,7 +121,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -143,7 +143,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -170,7 +170,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -208,7 +208,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -251,7 +251,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint, ToBigInt};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -297,7 +297,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint, ToBigInt};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -326,7 +326,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -377,7 +377,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -430,7 +430,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -471,7 +471,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -520,7 +520,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -553,7 +553,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::{BigInt, BigUint, ToBigInt};
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),
@@ -586,7 +586,7 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// ```rust
     /// use num_bigint::BigUint;
-    /// use privacy_preserving_accumulators::{rsa_group::RsaGroup, RsaAccumulator};
+    /// use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
     ///
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_from_params(
     ///     BigUint::from(61u32),

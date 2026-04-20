@@ -2,7 +2,7 @@ use ark_bls12_381::{Bls12_381, Fr};
 use ark_std::{test_rng, time::Duration};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use num_bigint::{BigInt, BigUint};
-use privacy_preserving_accumulators::{
+use private_accumulator_proof_delegation::{
     groups::RsaGroup, BilinearAccumulator, Group, RsaAccumulator,
 };
 

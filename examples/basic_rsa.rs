@@ -4,8 +4,8 @@
 //! Run with: `cargo run --example basic_rsa --release`
 
 use num_bigint::{BigUint, ToBigInt};
-use privacy_preserving_accumulators::rsa_group::RsaGroup;
-use privacy_preserving_accumulators::RsaAccumulator;
+use private_accumulator_proof_delegation::rsa_group::RsaGroup;
+use private_accumulator_proof_delegation::RsaAccumulator;
 
 fn main() {
     let mut acc = RsaAccumulator::<RsaGroup>::setup();
