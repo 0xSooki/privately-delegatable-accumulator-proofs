@@ -1,14 +1,9 @@
 [package]
-name = "privacy-preserving-accumulators"
+name = "private-accumulator-proof-delegation"
 version = "0.1.0"
-edition = "2021"
+edition = "2026"
 rust-version = "1.70"
-authors = ["Seres István András <seresistvanandras@gmail.com>","Bence Soóki-Tóth <0xsooki@gmail.com>","Botond Glasz <glasz.boti2002@gmail.com>"]
-description = "Cryptographic accumulators with privacy-preserving (blinded) proof updates. Supports RSA, class-group, and bilinear-pairing constructions."
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/GlaszBoti/privacy-preserving-accumulator-proofs"
-homepage = "https://github.com/GlaszBoti/privacy-preserving-accumulator-proofs"
-documentation = "https://docs.rs/privacy-preserving-accumulators"
+description = "Cryptographic accumulators with private proof update delegation. Supports RSA, class-group, and bilinear-pairing constructions."
 readme = "README.md"
 keywords = ["cryptography", "accumulator", "zero-knowledge", "rsa", "pairing"]
 categories = ["cryptography"]
