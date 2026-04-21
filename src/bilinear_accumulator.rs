@@ -177,21 +177,19 @@ impl<E: Pairing> BilinearAccumulator<E> {
             required_len
         );
 
-        debug_assert_eq!(powers_acc_t.first(), Some(acc_t));
-
         let powers_for_acc_t = Powers::<E> {
             powers_of_g: Cow::Owned(powers_acc_t.into_iter().take(required_len).collect()),
-            powers_of_gamma_g: Cow::Owned(vec![]),
+            powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
         let powers_for_pi = Powers::<E> {
             powers_of_g: Cow::Owned(crs_prime.into_iter().take(required_len).collect()),
-            powers_of_gamma_g: Cow::Owned(vec![]),
+            powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
         let powers_for_g1 = Powers::<E> {
             powers_of_g: Cow::Owned(self.crs_g1.iter().copied().take(required_len).collect()),
-            powers_of_gamma_g: Cow::Owned(vec![]),
+            powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
         let poe_eq_proof = nizk::BilinearNIZK::prove_poe_eq::<E>(
@@ -383,12 +381,12 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let powers = if let Some(custom_crs) = crs {
             Powers::<E> {
                 powers_of_g: Cow::Borrowed(custom_crs.as_slice()),
-                powers_of_gamma_g: Cow::Owned(vec![]),
+                powers_of_gamma_g: Cow::Borrowed(&[]),
             }
         } else {
             Powers::<E> {
                 powers_of_g: Cow::Borrowed(&self.crs_g1),
-                powers_of_gamma_g: Cow::Owned(vec![]),
+                powers_of_gamma_g: Cow::Borrowed(&[]),
             }
         };
 

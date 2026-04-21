@@ -32,8 +32,7 @@ impl<G: Group> RsaAccumulator<G> {
         let x_str = element.to_string();
         let x_prime = self.group.hash_to_prime(x_str.as_bytes());
 
-        if !self.set.contains(&x_prime) {
-            self.set.insert(x_prime.clone());
+        if self.set.insert(x_prime.clone()) {
             self.acc = self.group.exp(&self.acc, &x_prime);
         }
 

@@ -384,7 +384,7 @@ mod bilinear_poe_tests {
 
         let powers = Powers {
             powers_of_g: Cow::Owned(powers_of_g),
-            powers_of_gamma_g: Cow::Owned(vec![]),
+            powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
         (powers, pp.h, pp.beta_h)
@@ -402,7 +402,7 @@ mod bilinear_poe_tests {
 
         Powers {
             powers_of_g: Cow::Owned(scaled_powers_of_g),
-            powers_of_gamma_g: Cow::Owned(vec![]),
+            powers_of_gamma_g: Cow::Borrowed(&[]),
         }
     }
 

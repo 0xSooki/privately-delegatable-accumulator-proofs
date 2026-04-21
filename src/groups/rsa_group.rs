@@ -10,7 +10,7 @@ use sha256::digest;
 pub const MODULUS_SIZE: u64 = 128;
 
 #[cfg(not(test))]
-pub const MODULUS_SIZE: u64 = 3072;
+pub const MODULUS_SIZE: u64 = 1536;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrapdoorMode {
@@ -94,6 +94,12 @@ impl Group for RsaGroup {
     }
 
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
+        const SMALL_PRIMES: &[u32] = &[
+            3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83,
+            89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179,
+            181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
+        ];
+
         let hash_hex = digest(data);
         let mut candidate = BigUint::parse_bytes(hash_hex.as_bytes(), 16).unwrap();
 
@@ -102,9 +108,14 @@ impl Group for RsaGroup {
         }
 
         loop {
-            let candidate_signed = BigInt::from_biguint(Sign::Plus, candidate.clone());
-            if miller_rabin(&candidate_signed) {
-                return candidate;
+            if !SMALL_PRIMES
+                .iter()
+                .any(|&p| (&candidate % p).is_zero() && candidate != BigUint::from(p))
+            {
+                let candidate_signed = BigInt::from_biguint(Sign::Plus, candidate.clone());
+                if miller_rabin(&candidate_signed) {
+                    return candidate;
+                }
             }
             candidate += 2u32;
         }

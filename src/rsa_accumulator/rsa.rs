@@ -280,10 +280,11 @@ impl RsaAccumulator<RsaGroup> {
 
         let proof = if let Some(o) = self.group.order() {
             let totient_int = o.to_bigint().expect("BigUint always converts to BigInt");
-            let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
-            let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)
+            let a_mod = a.mod_floor(&totient_int);
+            let b_mod = b
+                .mod_floor(&totient_int)
                 .to_biguint()
-                .expect("value was reduced into [0, totient) so it is non-negative");
+                .expect("mod_floor output is non-negative");
             (a_mod, self.group.exp(&self.group.g(), &b_mod))
         } else {
             (a, self.group.signed_exp(&self.group.g(), &b))
@@ -355,7 +356,11 @@ impl RsaAccumulator<RsaGroup> {
         blinded_proof: &BigUint,
         delta: &BigInt,
     ) -> AccumulatorResult<UpdatedBlindProof> {
-        let delta_uint = delta.to_biguint().ok_or(AccumulatorError::NegativeDelta)?;
+        let mut delta_uint = delta.to_biguint().ok_or(AccumulatorError::NegativeDelta)?;
+
+        if let Some(order) = self.group.order() {
+            delta_uint %= order;
+        }
 
         let acc_t_prime = &self.acc;
         let a = self.group.exp(blinded_proof, &delta_uint);
@@ -503,10 +508,11 @@ impl RsaAccumulator<RsaGroup> {
 
         let proof = if let Some(t) = self.group.order() {
             let totient_int = t.to_bigint().expect("BigUint always converts to BigInt");
-            let a_mod = ((a % &totient_int) + &totient_int) % &totient_int;
-            let b_mod = (((b % &totient_int) + &totient_int) % &totient_int)
+            let a_mod = a.mod_floor(&totient_int);
+            let b_mod = b
+                .mod_floor(&totient_int)
                 .to_biguint()
-                .expect("value was reduced into [0, totient) so it is non-negative");
+                .expect("mod_floor output is non-negative");
             (a_mod, self.group.exp(&self.group.g(), &b_mod))
         } else {
             (a, self.group.signed_exp(&self.group.g(), &b))

@@ -1,13 +1,12 @@
 use super::RsaAccumulator;
 use crate::error::{AccumulatorError, AccumulatorResult};
 use crate::groups::class_group::{
-    ClassGroup, ClassGroupElement, ClassGroupExponent, DISC_SIZE, PARI_STACK_SIZE_BYTES,
+    ClassGroup, ClassGroupElement, ClassGroupExponent, PARI_STACK_SIZE_BYTES,
 };
 use crate::nizk::NIZK;
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 use class_group::pari_init;
 use curv::BigInt;
-use num_bigint::RandBigInt;
 use num_integer::{ExtendedGcd, Integer};
 use num_traits::{One, Zero};
 use rand::{thread_rng, RngCore};
