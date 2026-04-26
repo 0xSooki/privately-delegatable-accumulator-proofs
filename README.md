@@ -31,8 +31,6 @@ Non-membership works differently: the witness is a pair of Bézout coefficients 
 
 An example of this can be found in the **examples** folder
 
-For the full security analysis and proofs, see the [paper][paper].
-
 
 
 ## 🛠️ Installation
@@ -78,10 +76,4 @@ python plot_On_results.py    # requires: pip install pandas matplotlib seaborn
 ## </> API reference
 
 Run `cargo doc --open` for the full API reference with inline examples.
-
-
-## 📜 Research paper
-
-[paper]: #citation
-
 
