@@ -48,7 +48,7 @@ To get started with the project, follow these steps:
 1. **Clone the Repository**:
 
    ```bash
-   git clone https://github.com/glaszboti/privacy-preserving-accumulator-proofs
+   git clone <repository link>
    cd privacy-preserving-accumulator-proofs
    ```
 
