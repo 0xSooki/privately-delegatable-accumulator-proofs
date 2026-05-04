@@ -1,79 +1,87 @@
-# 🔐 Private accumulator proof delegation
+# private-accumulator-proof-delegation
 
-This repository contains code for privacy-preserving accumulator proof updates, that allows clients to outsource heavy proof updates to a server while using blinding techniques to keep the specific elements being updated hidden from that server.
+Cryptographic accumulators with privately delegatable proof updates in Rust. Supports RSA, class-group, and bilinear constructions.
 
-## 🔍 What problem does this solve?
+[![GitHub Actions](https://github.com/GlaszBoti/private-accumulator-proof-delegation/actions/workflows/rust.yml/badge.svg)](https://github.com/GlaszBoti/private-accumulator-proof-delegation/actions)
+[![Documentation](https://docs.rs/private-accumulator-proof-delegation/badge.svg)](https://docs.rs/private-accumulator-proof-delegation)
+[![IACR ePrint](https://img.shields.io/badge/IACR%20ePrint-2026%2F832-blue)](https://eprint.iacr.org/2026/832)
 
-Imagine you need to prove "my item is in this set" or "my item is not in this set", where the set contains millions of elements and changes constantly. Storing the whole set yourself is impractical. Recomputing your proof from scratch every time the set changes is expensive. A cryptographic accumulator solves the storage problem: the entire set is compressed into a single 3072-bit value (the digest). Your proof is a single group element. Verification is one modular exponentiation. The remaining problem: keeping your proof current. Every time the set changes, your proof goes stale. You could delegate the update work to a server - but sending your proof to a server tells the server exactly which element you hold a proof for. In a privacy-sensitive setting, that is unacceptable. This library solves the delegation problem. The client blinds its proof before sending it, the server updates the blinded proof, and the client verifies and unblinds to recover a valid up-to- date proof. The server learns nothing about the underlying element.
+## Documentation
 
-## ❓ When would you use this?
-- Stateless blockchains — clients hold only a digest of the UTXO set and must keep their spending witnesses current without revealing which coins they own.
-- Anonymous credentials — proving set membership without linking multiple proof requests.
-- Private allowlists / blocklists — a client proves membership or non-membership in a registry without revealing which entry it checked.
-- Any setting where you need verifiable set operations on a compact digest, with delegation to an untrusted third party.
+Clone the repository and run `cd privacy-preserving-accumulator-proofs/ && cargo doc --open`
 
-## 🧩 Features
+## Add `private-accumulator-proof-delegation` to your repository
 
-- ⚡ **Efficient Proof Updates**: Optimized algorithms for fast proof updates, reducing computational overhead.
-- 🕶️ **Blinding Techniques**: Advanced methods to ensure client data remains confidential during outsourcing.
-- 📊 **Performance Analysis**: Integrated tools for visualizing and analyzing performance metrics.
-- 🌍 **Cross-Platform Compatibility**: Works seamlessly across different operating systems and environments.
-- 🧪 **Robust Testing Framework**: Ensures reliability and correctness of the implementation through extensive testing.
+```toml
+[dependencies]
+private-accumulator-proof-delegation = "0.1.0"
+```
 
+## Example
 
-## ⚙️ How it works (in brief)
+```rust
+use num_bigint::{BigUint, ToBigInt};
+use private_accumulator_proof_delegation::rsa_group::RsaGroup;
+use private_accumulator_proof_delegation::RsaAccumulator;
 
-The digest of a set $\{x_1, \ldots, x_k\}$ is $\mathrm{Acc}(S) = g^{p_1 \cdots p_k} \bmod N$, where each $p_i$ is a prime hash of $x_i$. A membership witness for $x_j$ is $π_j = g^{\prod_{i \neq j} p_i}$ verification checks $\pi_j^{p_j} = \mathrm{Acc}(S)$.
+let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
-**Blinding** randomises the witness $\pi \mapsto \pi \cdot g^r$ with a fresh secret $r$. The server updates the blinded witness and proves it did so correctly with discrete-log-equality (DLEq) proofs under the Fiat–Shamir transform. The client verifies the proofs, then divides out $g^r$ to recover the updated witness in the clear.
+// Add elements to the accumulator
+let element = BigUint::from(7u32);
+let ep = acc.add(&element);
+for i in 2u32..5 {
+    acc.add(&BigUint::from(i));
+}
 
-Non-membership works differently: the witness is a pair of Bézout coefficients $(a, g^b)$ satisfying $a \cdot y + b \cdot P = 1$, where $P$ is the product of all accumulated primes. Blinding here multiplies the element itself by a fresh prime rather than masking the group element.
+// Prove and verify membership
+let proof = acc
+    .mem_proof_create(&ep)
+    .expect("element was just added; proof must exist");
+assert!(acc.mem_ver(&proof, &ep));
 
-An example of this can be found in the **examples** folder
+// Prove and verify non-membership
+let non_element = BigUint::from(383u32);
+let product = acc.calculate_product_unreduced().to_bigint().unwrap();
+let non_proof = acc
+    .non_mem_proof_create(&non_element, &product)
+    .expect("non-element is coprime with the set product");
+assert!(acc.non_mem_ver(&non_proof, &non_element));
+```
 
+A runnable version lives in [`examples/basic_rsa.rs`](examples/basic_rsa.rs):
 
+```bash
+cargo run --example basic_rsa --release
+```
 
-## 🛠️ Installation
+## Running the tests
 
-### 📋 Requirements
+```bash
+cargo test
+```
 
-- 🦀 Rust (for the core implementation)
-- 🐍 Python (for visualization and performance analysis)
-- 📦 pip (for managing Python dependencies)
+The default features (`rsa`, `bilinear`) require no system dependencies. The optional `class-group` feature pulls in `class_group`/`curv-kzen` and requires GMP and PARI to be installed (`brew install gmp pari` on macOS, `apt-get install libgmp-dev pari-gp` on Debian/Ubuntu):
 
-### 🚀 Quick start
+```bash
+cargo test --features class-group
+```
 
-To get started with the project, follow these steps:
+## Features
 
-1. **Clone the Repository**:
+- **RSA accumulator** — membership and non-membership proofs in groups of unknown order.
+- **Class-group instantiation** — a trapdoorless alternative to RSA: no trusted setup, at the cost of larger group elements and slower operations.
+- **Bilinear accumulator** — KZG-style construction over BLS12-381.
+- **Privacy-preserving update delegation** — clients blind their proofs before sending them to an untrusted server, the server updates the blinded proof, and the client verifies the work via NIZK proofs of discrete-log equality and unblinds to recover a valid up-to-date proof. The server learns nothing about the underlying element.
+- **Cargo features** to opt into individual constructions: `rsa` and `bilinear` are on by default; enable `class-group` for the trapdoorless variant.
 
-   ```bash
-   git clone <repository link>
-   cd privacy-preserving-accumulator-proofs
-   ```
-
-2. **Build the Rust Project**:
-
-   ```bash
-   cargo build --release
-   ```
-
-3. **Run the Application**:
-   After building the Rust project, you can run the application using:
-
-   ```bash
-   cargo run
-   ```
-
-### 📊 Benchmarks
+## Benchmarks
 
 ```bash
 cargo bench
-python plot_On_results.py    # requires: pip install pandas matplotlib seaborn
 ```
 
+Plotting helpers in `figures/` reproduce the benchmark figures from the accompanying paper. They require Python with `pandas`, `matplotlib`, and `seaborn` installed.
 
-## </> API reference
+## Acknowledgements
 
-Run `cargo doc --open` for the full API reference with inline examples.
-
+This library builds on the work of the [arkworks](https://github.com/arkworks-rs) ecosystem (`ark-ec`, `ark-ff`, `ark-poly-commit`, `ark-bls12-381`), the [`class_group`](https://crates.io/crates/class_group) and [`curv-kzen`](https://crates.io/crates/curv-kzen) crates for class-group arithmetic, and [`glass_pumpkin`](https://crates.io/crates/glass_pumpkin) for safe-prime generation.
