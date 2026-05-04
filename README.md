@@ -4,6 +4,7 @@ Cryptographic accumulators with privately delegatable proof updates in Rust. Sup
 
 [![GitHub Actions](https://github.com/GlaszBoti/private-accumulator-proof-delegation/actions/workflows/rust.yml/badge.svg)](https://github.com/GlaszBoti/private-accumulator-proof-delegation/actions)
 [![Documentation](https://docs.rs/private-accumulator-proof-delegation/badge.svg)](https://docs.rs/private-accumulator-proof-delegation)
+[![IACR ePrint](https://img.shields.io/badge/IACR%20ePrint-2026%2F832-blue)](https://eprint.iacr.org/2026/832)
 
 ## Documentation
 
