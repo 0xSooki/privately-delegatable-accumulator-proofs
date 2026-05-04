@@ -6,6 +6,7 @@ rust-version = "1.70"
 description = "Cryptographic accumulators with private proof update delegation. Supports RSA, class-group, and bilinear-pairing constructions."
 readme = "README.md"
 repository = "https://github.com/GlaszBoti/private-accumulator-proof-delegation"
+documentation = "https://docs.rs/private-accumulator-proof-delegation"
 authors = ["Bence Soóki-Tóth <bence.sooki.toth@gmail.com>", "Botond Glasz <glasz.boti2002@gmail.com>", "Seres István András <seresistvanandras@gmail.com>"]
 keywords = ["cryptography", "accumulator"]
 categories = ["cryptography"]
