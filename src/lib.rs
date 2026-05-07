@@ -28,7 +28,7 @@ pub mod error;
 #[cfg(feature = "rsa")]
 pub mod rsa_accumulator;
 
-#[cfg(feature = "rsa")]
+#[cfg(any(feature = "rsa", feature = "bilinear"))]
 pub mod groups;
 
 #[cfg(feature = "bilinear")]
@@ -47,6 +47,9 @@ pub use rsa_accumulator::RsaAccumulator;
 
 #[cfg(feature = "rsa")]
 pub use groups::rsa_group;
+
+#[cfg(feature = "bilinear")]
+pub use groups::bilinear_group;
 
 #[cfg(feature = "bilinear")]
 pub use bilinear_accumulator::BilinearAccumulator;

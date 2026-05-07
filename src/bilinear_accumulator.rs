@@ -7,7 +7,10 @@ use rand::thread_rng;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
+use crate::error::{AccumulatorError, AccumulatorResult};
+use crate::groups::bilinear_group::BilinearG1;
 use crate::nizk;
+use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MembershipProof<E: Pairing> {
@@ -21,9 +24,54 @@ pub struct NonMembershipProof<E: Pairing> {
 }
 
 #[derive(Clone, Debug)]
+pub struct ProverMembershipProof<E: Pairing> {
+    pub proof: MembershipProof<E>,
+    pub element: E::ScalarField,
+    pub witness_poly: DensePolynomial<E::ScalarField>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BlindedMembershipBundle<E: Pairing> {
+    pub pi_blinded: E::G1Affine,
+    pub crs_prime: Vec<E::G1Affine>,
+    pub poly_s: DensePolynomial<E::ScalarField>,
+}
+
+#[derive(Clone, Debug)]
+pub struct UpdatedBlindedMembershipBundle<E: Pairing> {
+    pub pi_prime: E::G1Affine,
+    pub q_star: DensePolynomial<E::ScalarField>,
+}
+
+pub type MembershipUpdateAux<E> = (
+    <E as Pairing>::G1Affine,
+    <E as Pairing>::G1Affine,
+    <E as Pairing>::G1Affine,
+    <E as Pairing>::ScalarField,
+    <E as Pairing>::G1Affine,
+);
+
+#[derive(Clone, Debug)]
+pub struct BlindedNonMembershipBundle<E: Pairing> {
+    pub crs_prime: (E::G1Affine, E::G1Affine),
+    pub y_prime: E::ScalarField,
+    pub r: E::ScalarField,
+    pub element: E::ScalarField,
+    pub acc_t: E::G1Affine,
+}
+
+#[derive(Clone, Debug)]
+pub struct UpdatedBlindedNonMembershipBundle<E: Pairing> {
+    pub q_prime: E::G1Affine,
+    pub y_prime_t_prime: E::ScalarField,
+    pub g2_sn_plus_one: E::G2Affine,
+    pub y_prime_t: E::ScalarField,
+    pub element: E::ScalarField,
+}
+
+#[derive(Clone, Debug)]
 pub struct BilinearAccumulator<E: Pairing> {
-    crs_g1: Vec<E::G1Affine>,
-    crs_g2: Vec<E::G2Affine>,
+    pub group: BilinearG1<E>,
     acc: E::G1Affine,
     poly: DensePolynomial<E::ScalarField>,
     elements: HashSet<E::ScalarField>,
@@ -31,20 +79,12 @@ pub struct BilinearAccumulator<E: Pairing> {
 
 impl<E: Pairing> BilinearAccumulator<E> {
     pub fn setup<R: Rng>(rng: &mut R, max_elements: usize) -> BilinearAccumulator<E> {
-        let pp = KZG10::<E, DensePolynomial<E::ScalarField>>::setup(max_elements, false, rng)
-            .expect("KZG setup failed");
-
-        let crs_g1: Vec<E::G1Affine> = pp.powers_of_g.to_vec();
-        let g2 = pp.h;
-        let g2_tau = pp.beta_h;
-        let crs_g2 = vec![g2, g2_tau];
-
+        let group = BilinearG1::<E>::new(rng, max_elements);
         let poly = DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]);
-        let acc = crs_g1[0];
+        let acc = group.crs_g1[0];
 
         BilinearAccumulator {
-            crs_g1,
-            crs_g2,
+            group,
             acc,
             poly,
             elements: HashSet::new(),
@@ -103,8 +143,8 @@ impl<E: Pairing> BilinearAccumulator<E> {
     }
 
     pub fn mem_ver(&self, proof: &MembershipProof<E>, element: E::ScalarField) -> bool {
-        let g2 = self.crs_g2[0];
-        let g2_tau = self.crs_g2[1];
+        let g2 = self.group.crs_g2[0];
+        let g2_tau = self.group.crs_g2[1];
 
         let g2_tau_minus_s = (g2_tau.into_group() - g2.into_group() * element).into_affine();
 
@@ -114,9 +154,9 @@ impl<E: Pairing> BilinearAccumulator<E> {
     }
 
     pub fn non_mem_ver(&self, proof: &NonMembershipProof<E>, element: E::ScalarField) -> bool {
-        let g1 = self.crs_g1[0];
-        let g2 = self.crs_g2[0];
-        let g2_tau = self.crs_g2[1];
+        let g1 = self.group.crs_g1[0];
+        let g2 = self.group.crs_g2[0];
+        let g2_tau = self.group.crs_g2[1];
 
         let g2_tau_minus_s = (g2_tau.into_group() - g2.into_group() * element).into_affine();
 
@@ -188,7 +228,14 @@ impl<E: Pairing> BilinearAccumulator<E> {
         };
 
         let powers_for_g1 = Powers::<E> {
-            powers_of_g: Cow::Owned(self.crs_g1.iter().copied().take(required_len).collect()),
+            powers_of_g: Cow::Owned(
+                self.group
+                    .crs_g1
+                    .iter()
+                    .copied()
+                    .take(required_len)
+                    .collect(),
+            ),
             powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
@@ -240,9 +287,9 @@ impl<E: Pairing> BilinearAccumulator<E> {
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = &self.acc;
-        let g1 = &self.crs_g1[0];
-        let g2 = &self.crs_g2[0];
-        let g2_s = &self.crs_g2[1];
+        let g1 = &self.group.crs_g1[0];
+        let g2 = &self.group.crs_g2[0];
+        let g2_s = &self.group.crs_g2[1];
 
         nizk::BilinearNIZK::verify_poe_eq::<E>(
             g1,
@@ -311,7 +358,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
 
         let y_prime_t_prime = y_prime.to_owned() * sn_plus_one.to_owned();
 
-        let g2 = self.crs_g2[0];
+        let g2 = self.group.crs_g2[0];
 
         let g2_sn_plus_one = (g2.into_group() * sn_plus_one.to_owned()).into_affine();
 
@@ -332,8 +379,8 @@ impl<E: Pairing> BilinearAccumulator<E> {
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = &self.acc;
-        let g2 = self.crs_g2[0];
-        let g2_tau = self.crs_g2[1];
+        let g2 = self.group.crs_g2[0];
+        let g2_tau = self.group.crs_g2[1];
 
         let (crs_prime, _) = blinded_non_mem_proof;
         let (q_prime, _) = upd_blinded_non_mem_proof;
@@ -364,7 +411,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let (q_prime, y_prime_t_prime) = &blinded_non_mem_proof;
         let (r, y_prime_t) = st;
         let r_inv = r.inverse().expect("r must be nonzero");
-        let g1 = self.crs_g1[0];
+        let g1 = self.group.crs_g1[0];
 
         let y_t = y_prime_t.to_owned() * r_inv;
         let q = (q_prime.into_group() * r_inv + g1.into_group() * y_t).into_affine();
@@ -385,7 +432,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
             }
         } else {
             Powers::<E> {
-                powers_of_g: Cow::Borrowed(&self.crs_g1),
+                powers_of_g: Cow::Borrowed(&self.group.crs_g1),
                 powers_of_gamma_g: Cow::Borrowed(&[]),
             }
         };
@@ -412,6 +459,257 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
         let r = coeffs[0] + *c * q[0];
         (DensePolynomial::from_coefficients_vec(q), r)
+    }
+}
+
+impl<E: Pairing> Accumulator for BilinearAccumulator<E>
+where
+    E::ScalarField: PrimeField,
+{
+    type Group = BilinearG1<E>;
+    type Element = E::ScalarField;
+    type MembershipProof = ProverMembershipProof<E>;
+    type NonMembershipProof = NonMembershipProof<E>;
+    type NonMembershipProduct = ();
+
+    fn new(group: Self::Group) -> Self {
+        let acc = group.crs_g1[0];
+        Self {
+            group,
+            acc,
+            poly: DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]),
+            elements: HashSet::new(),
+        }
+    }
+
+    fn add(&mut self, element: &Self::Element) -> <Self::Group as Group>::Exponent {
+        BilinearAccumulator::<E>::add(self, element);
+        *element
+    }
+
+    fn del(&mut self, element: &Self::Element) {
+        BilinearAccumulator::<E>::del(self, *element);
+    }
+
+    fn value(&self) -> &<Self::Group as Group>::Element {
+        &self.acc
+    }
+
+    fn mem_proof_create(
+        &self,
+        element: &<Self::Group as Group>::Exponent,
+    ) -> AccumulatorResult<Self::MembershipProof> {
+        if !self.elements.contains(element) {
+            return Err(AccumulatorError::ElementNotInSet);
+        }
+        let (witness_poly, _) = Self::syn_div(&self.poly, element);
+        let pi = self.kzg_com(&None, &witness_poly);
+        Ok(ProverMembershipProof {
+            proof: MembershipProof { pi },
+            element: *element,
+            witness_poly,
+        })
+    }
+
+    fn mem_ver(
+        &self,
+        proof: &Self::MembershipProof,
+        element: &<Self::Group as Group>::Exponent,
+    ) -> bool {
+        BilinearAccumulator::<E>::mem_ver(self, &proof.proof, *element)
+    }
+
+    fn non_mem_proof_create(
+        &self,
+        element: &Self::Element,
+        _prod: &Self::NonMembershipProduct,
+    ) -> AccumulatorResult<Self::NonMembershipProof> {
+        BilinearAccumulator::<E>::non_mem_proof_create(self, *element)
+            .ok_or(AccumulatorError::NotCoprime)
+    }
+
+    fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
+        BilinearAccumulator::<E>::non_mem_ver(self, proof, *element)
+    }
+}
+
+impl<E: Pairing> PrivatelyDelegatableAccumulator for BilinearAccumulator<E>
+where
+    E::ScalarField: PrimeField,
+{
+    type BlindedMembershipProof = BlindedMembershipBundle<E>;
+    type MembershipBlindingFactor = E::ScalarField;
+    type UpdatedBlindedMembershipProof = UpdatedBlindedMembershipBundle<E>;
+    type MembershipUpdateAux = MembershipUpdateAux<E>;
+    type BlindedNonMembershipProof = BlindedNonMembershipBundle<E>;
+    type UpdatedBlindedNonMembershipProof = UpdatedBlindedNonMembershipBundle<E>;
+    type Delta = DensePolynomial<E::ScalarField>;
+
+    fn blind_mem_proof(
+        &self,
+        proof: &Self::MembershipProof,
+    ) -> (Self::BlindedMembershipProof, Self::MembershipBlindingFactor) {
+        let mut rng = thread_rng();
+        let k = self
+            .group
+            .crs_g1
+            .len()
+            .saturating_sub(self.poly.coeffs().len());
+        let (crs_prime, r) =
+            BilinearAccumulator::<E>::blind_mem_proof(self, &mut rng, &proof.witness_poly, k)
+                .expect("blind_mem_proof returns Some for any polynomial");
+        let pi_blinded = crs_prime[0];
+        let bundle = BlindedMembershipBundle {
+            pi_blinded,
+            crs_prime,
+            poly_s: self.poly.clone(),
+        };
+        (bundle, r)
+    }
+
+    fn blind_mem_proof_upd(
+        &self,
+        acc_t: &<Self::Group as Group>::Element,
+        blinded_proof: &Self::BlindedMembershipProof,
+        delta: &Self::Delta,
+    ) -> AccumulatorResult<(
+        Self::UpdatedBlindedMembershipProof,
+        Self::MembershipUpdateAux,
+        <Self::Group as Group>::Element,
+    )> {
+        let q_star = delta.clone();
+        let powers_acc_t = self.shift_com(&blinded_proof.poly_s, q_star.coeffs().len());
+        let (pi_prime, poe_eq_proof, q_star_back) = BilinearAccumulator::<E>::blind_mem_proof_upd(
+            self,
+            &blinded_proof.pi_blinded,
+            acc_t,
+            blinded_proof.crs_prime.clone(),
+            q_star,
+            powers_acc_t,
+        );
+        Ok((
+            UpdatedBlindedMembershipBundle {
+                pi_prime,
+                q_star: q_star_back,
+            },
+            poe_eq_proof,
+            self.acc,
+        ))
+    }
+
+    fn ver_blind_mem_proof_upd(
+        &self,
+        acc_t: &<Self::Group as Group>::Element,
+        blinded_proof: &Self::BlindedMembershipProof,
+        upd_blinded_proof: &Self::UpdatedBlindedMembershipProof,
+        aux: &Self::MembershipUpdateAux,
+    ) -> bool {
+        BilinearAccumulator::<E>::ver_blind_mem_proof_upd(
+            self,
+            &blinded_proof.pi_blinded,
+            &upd_blinded_proof.pi_prime,
+            acc_t,
+            &upd_blinded_proof.q_star,
+            aux,
+        )
+    }
+
+    fn unblind_mem_proof(
+        &self,
+        blinded_proof: &Self::BlindedMembershipProof,
+        st: &Self::MembershipBlindingFactor,
+    ) -> Self::MembershipProof {
+        let pi = BilinearAccumulator::<E>::unblind_mem_proof(&blinded_proof.pi_blinded, st);
+        ProverMembershipProof {
+            proof: MembershipProof { pi },
+            element: E::ScalarField::zero(),
+            witness_poly: DensePolynomial::zero(),
+        }
+    }
+
+    fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
+        let proof = BilinearAccumulator::<E>::non_mem_proof_create(self, *element)
+            .expect("blind_non_mem_proof: element must not currently be a member");
+        let (((b_r, b_tau_r), y_prime), r) =
+            BilinearAccumulator::<E>::blind_non_mem_proof(self, &proof, *element);
+        BlindedNonMembershipBundle {
+            crs_prime: (b_r, b_tau_r),
+            y_prime,
+            r,
+            element: *element,
+            acc_t: self.acc,
+        }
+    }
+
+    fn blind_non_mem_proof_upd(
+        &self,
+        blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
+        delta: &Self::Delta,
+    ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
+        let coeffs = delta.coeffs();
+        if coeffs.len() != 2 || !coeffs[1].is_one() {
+            return Err(AccumulatorError::NotCoprime);
+        }
+        let sn_plus_one = -coeffs[0];
+        let blinded_inner = (
+            blinded_non_mem_proof.crs_prime,
+            blinded_non_mem_proof.y_prime,
+        );
+        let ((q_prime, y_prime_t_prime), g2_sn_plus_one) =
+            BilinearAccumulator::<E>::blind_non_mem_proof_upd(
+                self,
+                &blinded_inner,
+                &blinded_non_mem_proof.acc_t,
+                &sn_plus_one,
+            );
+        Ok(UpdatedBlindedNonMembershipBundle {
+            q_prime,
+            y_prime_t_prime,
+            g2_sn_plus_one,
+            y_prime_t: blinded_non_mem_proof.y_prime,
+            element: blinded_non_mem_proof.element,
+        })
+    }
+
+    fn ver_blind_non_mem_proof_upd(
+        &self,
+        _acc_t_prime: &<Self::Group as Group>::Element,
+        blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
+        upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
+    ) -> bool {
+        let blinded_inner = (
+            blinded_non_mem_proof.crs_prime,
+            blinded_non_mem_proof.y_prime,
+        );
+        let upd_inner = (
+            upd_blinded_non_mem_proof.q_prime,
+            upd_blinded_non_mem_proof.y_prime_t_prime,
+        );
+        BilinearAccumulator::<E>::ver_blind_non_mem_proof_upd(
+            self,
+            &blinded_non_mem_proof.acc_t,
+            &blinded_inner,
+            &upd_inner,
+            &upd_blinded_non_mem_proof.g2_sn_plus_one,
+        )
+    }
+
+    fn unblind_non_mem_proof(
+        &self,
+        st: &<Self::Group as Group>::Exponent,
+        upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
+    ) -> Self::NonMembershipProof {
+        let upd_inner = (
+            upd_blinded_non_mem_proof.q_prime,
+            upd_blinded_non_mem_proof.y_prime_t_prime,
+        );
+        let st_pair = (*st, upd_blinded_non_mem_proof.y_prime_t);
+        BilinearAccumulator::<E>::unblind_non_mem_proof(
+            self,
+            &upd_inner,
+            &st_pair,
+            upd_blinded_non_mem_proof.element,
+        )
     }
 }
 
@@ -593,6 +891,150 @@ mod tests {
         assert!(
             acc.non_mem_ver(&updated_proof, non_member),
             "updated should verify"
+        );
+    }
+}
+
+#[cfg(test)]
+mod trait_tests {
+    use super::*;
+    use ark_bls12_381::{Bls12_381, Fr};
+    use ark_std::test_rng;
+
+    fn linear_factor(x: Fr) -> DensePolynomial<Fr> {
+        DensePolynomial::from_coefficients_vec(vec![-x, Fr::one()])
+    }
+
+    fn product_poly(elements: &[Fr]) -> DensePolynomial<Fr> {
+        elements.iter().fold(
+            DensePolynomial::from_coefficients_vec(vec![Fr::one()]),
+            |acc, x| &acc * &linear_factor(*x),
+        )
+    }
+
+    #[test]
+    fn trait_mem_proof_roundtrip() {
+        let group = BilinearG1::<Bls12_381>::new(&mut test_rng(), 16);
+        let mut acc = <BilinearAccumulator<Bls12_381> as Accumulator>::new(group);
+        let elements: Vec<Fr> = (1u64..=4).map(Fr::from).collect();
+        for e in &elements {
+            <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, e);
+        }
+        let proof =
+            <BilinearAccumulator<Bls12_381> as Accumulator>::mem_proof_create(&acc, &elements[2])
+                .expect("trait mem_proof_create");
+        assert!(<BilinearAccumulator<Bls12_381> as Accumulator>::mem_ver(
+            &acc,
+            &proof,
+            &elements[2]
+        ));
+    }
+
+    #[test]
+    fn trait_non_mem_proof_roundtrip() {
+        let group = BilinearG1::<Bls12_381>::new(&mut test_rng(), 16);
+        let mut acc = <BilinearAccumulator<Bls12_381> as Accumulator>::new(group);
+        for e in (1u64..=4).map(Fr::from) {
+            <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, &e);
+        }
+        let non_member = Fr::from(666u64);
+        let proof = <BilinearAccumulator<Bls12_381> as Accumulator>::non_mem_proof_create(
+            &acc,
+            &non_member,
+            &(),
+        )
+        .expect("trait non_mem_proof_create");
+        assert!(
+            <BilinearAccumulator<Bls12_381> as Accumulator>::non_mem_ver(&acc, &proof, &non_member)
+        );
+    }
+
+    #[test]
+    fn trait_blind_mem_proof_upd_roundtrip() {
+        let group = BilinearG1::<Bls12_381>::new(&mut test_rng(), 32);
+        let mut acc = <BilinearAccumulator<Bls12_381> as Accumulator>::new(group);
+        let initial: Vec<Fr> = (1u64..=3).map(Fr::from).collect();
+        for e in &initial {
+            <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, e);
+        }
+        let element = initial[1];
+        let proof =
+            <BilinearAccumulator<Bls12_381> as Accumulator>::mem_proof_create(&acc, &element)
+                .expect("mem proof");
+
+        let acc_t = *<BilinearAccumulator<Bls12_381> as Accumulator>::value(&acc);
+        let (blinded, st) =
+            <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::blind_mem_proof(
+                &acc, &proof,
+            );
+
+        let added: Vec<Fr> = (4u64..=5).map(Fr::from).collect();
+        for e in &added {
+            <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, e);
+        }
+        let delta = product_poly(&added);
+
+        let (upd, aux, _new_acc) =
+            <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::blind_mem_proof_upd(
+                &acc, &acc_t, &blinded, &delta,
+            )
+            .expect("upd");
+        assert!(<BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::ver_blind_mem_proof_upd(
+            &acc, &acc_t, &blinded, &upd, &aux,
+        ));
+
+        let unblinded =
+            <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::unblind_mem_proof(
+                &acc,
+                &BlindedMembershipBundle {
+                    pi_blinded: upd.pi_prime,
+                    crs_prime: blinded.crs_prime.clone(),
+                    poly_s: blinded.poly_s.clone(),
+                },
+                &st,
+            );
+        assert!(<BilinearAccumulator<Bls12_381> as Accumulator>::mem_ver(
+            &acc, &unblinded, &element,
+        ));
+    }
+
+    #[test]
+    fn trait_blind_non_mem_proof_upd_roundtrip() {
+        let group = BilinearG1::<Bls12_381>::new(&mut test_rng(), 16);
+        let mut acc = <BilinearAccumulator<Bls12_381> as Accumulator>::new(group);
+        for e in (1u64..=3).map(Fr::from) {
+            <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, &e);
+        }
+        let non_member = Fr::from(666u64);
+        let blinded =
+            <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::blind_non_mem_proof(
+                &acc, &non_member,
+            );
+
+        let added = Fr::from(67u64);
+        <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, &added);
+        let delta = linear_factor(added);
+
+        let upd =
+            <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::blind_non_mem_proof_upd(
+                &acc, &blinded, &delta,
+            )
+            .expect("non-mem upd");
+        let acc_t_prime = *<BilinearAccumulator<Bls12_381> as Accumulator>::value(&acc);
+        assert!(<BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::ver_blind_non_mem_proof_upd(
+            &acc, &acc_t_prime, &blinded, &upd,
+        ));
+
+        let unblinded =
+            <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::unblind_non_mem_proof(
+                &acc, &blinded.r, &upd,
+            );
+        assert!(
+            <BilinearAccumulator<Bls12_381> as Accumulator>::non_mem_ver(
+                &acc,
+                &unblinded,
+                &non_member,
+            )
         );
     }
 }
