@@ -2,7 +2,7 @@ use crate::traits::Group;
 #[cfg(feature = "bilinear")]
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 #[cfg(feature = "bilinear")]
-use ark_ff::{BigInteger, One, PrimeField, Zero};
+use ark_ff::{One, PrimeField, Zero};
 #[cfg(feature = "bilinear")]
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 #[cfg(feature = "bilinear")]
@@ -74,11 +74,10 @@ impl<'a, G: Group> NIZK<'a, G> {
         v: &G::Element,
         w: &G::Exponent,
     ) -> Proof<G> {
-        let mut rng = thread_rng();
-        let mut seed = [0u8; 32];
-        rng.fill_bytes(&mut seed);
+        let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+        thread_rng().fill_bytes(seed.as_mut());
 
-        let r = self.group.hash_to_prime(&seed);
+        let r = self.group.hash_to_prime(seed.as_ref());
         let a = self.group.exp(g, &r);
         let b = self.group.exp(h, &r);
 
@@ -129,6 +128,8 @@ pub struct BilinearNIZK;
 
 #[cfg(feature = "bilinear")]
 impl BilinearNIZK {
+    const FS_DST: &'static [u8] = b"PADP-v1/poe-eq-sigma-g1/fs-challenge";
+
     fn fs<E: Pairing>(
         g: &E::G1Affine,
         u: &E::G1Affine,
@@ -139,18 +140,23 @@ impl BilinearNIZK {
     where
         E::ScalarField: PrimeField,
     {
-        let mut hasher = Sha256::new();
-        hasher.update(b"poe_eq_and_sigma_g1");
-        hasher.update(format!("{:?}", g).as_bytes());
-        hasher.update(format!("{:?}", u).as_bytes());
-        hasher.update(format!("{:?}", h).as_bytes());
-        hasher.update(format!("{:?}", v).as_bytes());
+        use ark_serialize::CanonicalSerialize;
 
-        for coeff in poly.coeffs() {
-            let coeff_bytes = coeff.into_bigint().to_bytes_le();
-            hasher.update((coeff_bytes.len() as u64).to_le_bytes());
-            hasher.update(&coeff_bytes);
+        fn absorb<T: CanonicalSerialize>(hasher: &mut Sha256, item: &T) {
+            let mut buf = Vec::with_capacity(item.compressed_size());
+            item.serialize_compressed(&mut buf)
+                .expect("infallible: serializing into Vec");
+            hasher.update((buf.len() as u64).to_le_bytes());
+            hasher.update(&buf);
         }
+
+        let mut hasher = Sha256::new();
+        hasher.update(Self::FS_DST);
+        absorb(&mut hasher, g);
+        absorb(&mut hasher, u);
+        absorb(&mut hasher, h);
+        absorb(&mut hasher, v);
+        absorb(&mut hasher, poly);
 
         let digest = hasher.finalize();
         let mut alpha = E::ScalarField::from_le_bytes_mod_order(&digest);

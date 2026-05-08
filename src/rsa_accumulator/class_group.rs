@@ -164,10 +164,10 @@ impl RsaAccumulator<ClassGroup> {
                 ClassGroupExponent(BigInt::one()),
             )
         } else {
-            let mut seed = [0u8; 32];
-            thread_rng().fill_bytes(&mut seed);
+            let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+            thread_rng().fill_bytes(seed.as_mut());
 
-            let q = self.group.hash_to_prime(&seed);
+            let q = self.group.hash_to_prime(seed.as_ref());
             let blinded = ClassGroupExponent(&element.0 * &q.0);
             (blinded, q)
         }

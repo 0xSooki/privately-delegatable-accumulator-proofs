@@ -3,6 +3,7 @@ use num_bigint::BigUint;
 use rand::thread_rng;
 use rand::RngCore;
 use std::collections::HashSet;
+use zeroize::Zeroizing;
 
 pub(super) type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
 pub(super) type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
@@ -57,10 +58,9 @@ impl<G: Group> RsaAccumulator<G> {
     }
 
     fn sample_blinder(&self) -> G::Exponent {
-        let mut rng = thread_rng();
-        let mut seed = [0u8; 32];
-        rng.fill_bytes(&mut seed);
-        self.group.hash_to_prime(&seed)
+        let mut seed = Zeroizing::new([0u8; 32]);
+        thread_rng().fill_bytes(seed.as_mut());
+        self.group.hash_to_prime(seed.as_ref())
     }
 }
 

@@ -31,6 +31,14 @@ impl RsaGroup {
     }
 }
 
+impl Drop for RsaGroup {
+    fn drop(&mut self) {
+        if let Some(o) = self.order.as_mut() {
+            *o = BigUint::zero();
+        }
+    }
+}
+
 impl Group for RsaGroup {
     type Element = BigUint;
     type Exponent = BigUint;

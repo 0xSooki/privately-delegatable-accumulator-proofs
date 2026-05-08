@@ -22,7 +22,7 @@ exclude = [
 [features]
 default = ["rsa", "bilinear"]
 rsa = ["num-bigint", "num-traits", "num-integer", "glass_pumpkin"]
-bilinear = ["ark-ec", "ark-ff", "ark-std", "ark-poly", "ark-poly-commit", "ark-bls12-381"]
+bilinear = ["ark-ec", "ark-ff", "ark-std", "ark-poly", "ark-poly-commit", "ark-bls12-381", "ark-serialize"]
 class-group = ["class_group", "curv"]
 
 [dependencies]
@@ -30,6 +30,7 @@ rand = "0.8"
 sha256 = "1.6"
 sha2 = "0.9"
 hmac = "0.11"
+zeroize = { version = "1.7", features = ["derive"] }
 
 num-bigint = { version = "0.4", features = ["rand"], optional = true }
 num-traits = { version = "0.2", optional = true }
@@ -42,6 +43,7 @@ ark-std = { version = "0.4", optional = true }
 ark-poly = { version = "0.4", optional = true }
 ark-poly-commit = { version = "0.4", optional = true }
 ark-bls12-381 = { version = "0.4", optional = true }
+ark-serialize = { version = "0.4", optional = true }
 
 Gen_Prime = "1.1"
 rust-miller-rabin = "0.1"
