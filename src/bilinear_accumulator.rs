@@ -91,11 +91,11 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
     }
 
-    pub fn value(&self) -> E::G1Affine {
+    pub fn value_raw(&self) -> E::G1Affine {
         self.acc
     }
 
-    pub fn add(&mut self, element: &E::ScalarField) -> bool {
+    pub fn add_raw(&mut self, element: &E::ScalarField) -> bool {
         if self.elements.contains(&element) {
             return false;
         }
@@ -109,7 +109,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         true
     }
 
-    pub fn del(&mut self, element: E::ScalarField) -> bool {
+    pub fn del_raw(&mut self, element: E::ScalarField) -> bool {
         if !self.elements.contains(&element) {
             return false;
         }
@@ -121,7 +121,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         true
     }
 
-    pub fn mem_proof_create(&self, element: E::ScalarField) -> Option<MembershipProof<E>> {
+    pub fn mem_proof_create_raw(&self, element: E::ScalarField) -> Option<MembershipProof<E>> {
         if !self.elements.contains(&element) {
             return None;
         }
@@ -131,7 +131,10 @@ impl<E: Pairing> BilinearAccumulator<E> {
         })
     }
 
-    pub fn non_mem_proof_create(&self, element: E::ScalarField) -> Option<NonMembershipProof<E>> {
+    pub fn non_mem_proof_create_raw(
+        &self,
+        element: E::ScalarField,
+    ) -> Option<NonMembershipProof<E>> {
         if self.elements.contains(&element) {
             return None;
         }
@@ -142,7 +145,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         })
     }
 
-    pub fn mem_ver(&self, proof: &MembershipProof<E>, element: E::ScalarField) -> bool {
+    pub fn mem_ver_raw(&self, proof: &MembershipProof<E>, element: E::ScalarField) -> bool {
         let g2 = self.group.crs_g2[0];
         let g2_tau = self.group.crs_g2[1];
 
@@ -153,7 +156,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         lhs == rhs
     }
 
-    pub fn non_mem_ver(&self, proof: &NonMembershipProof<E>, element: E::ScalarField) -> bool {
+    pub fn non_mem_ver_raw(&self, proof: &NonMembershipProof<E>, element: E::ScalarField) -> bool {
         let g1 = self.group.crs_g1[0];
         let g2 = self.group.crs_g2[0];
         let g2_tau = self.group.crs_g2[1];
@@ -167,7 +170,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         lhs == rhs
     }
 
-    pub fn blind_mem_proof<R: Rng>(
+    pub fn blind_mem_proof_raw<R: Rng>(
         &self,
         rng: &mut R,
         q: &DensePolynomial<E::ScalarField>,
@@ -184,7 +187,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         Some((crs_prime, r))
     }
 
-    pub fn blind_mem_proof_upd(
+    pub fn blind_mem_proof_upd_raw(
         &self,
         pi: &E::G1Affine,
         acc_t: &E::G1Affine,
@@ -269,7 +272,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         shifted_coms
     }
 
-    pub fn ver_blind_mem_proof_upd(
+    pub fn ver_blind_mem_proof_upd_raw(
         &self,
         pi: &E::G1Affine,
         pi_prime: &E::G1Affine,
@@ -304,12 +307,12 @@ impl<E: Pairing> BilinearAccumulator<E> {
         )
     }
 
-    pub fn unblind_mem_proof(pi_prime: &E::G1Affine, r: &E::ScalarField) -> E::G1Affine {
+    pub fn unblind_mem_proof_raw(pi_prime: &E::G1Affine, r: &E::ScalarField) -> E::G1Affine {
         let r_inv = r.inverse().expect("r must be nonzero");
         (pi_prime.into_group() * r_inv).into_affine()
     }
 
-    pub fn blind_non_mem_proof(
+    pub fn blind_non_mem_proof_raw(
         &self,
         proof: &NonMembershipProof<E>,
         element: E::ScalarField,
@@ -342,7 +345,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         (blinded_non_mem_proof, r)
     }
 
-    pub fn blind_non_mem_proof_upd(
+    pub fn blind_non_mem_proof_upd_raw(
         &self,
         blinded_non_mem_proof: &(
             (<E as Pairing>::G1Affine, <E as Pairing>::G1Affine),
@@ -365,7 +368,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         ((q_prime, y_prime_t_prime), g2_sn_plus_one)
     }
 
-    pub fn ver_blind_non_mem_proof_upd(
+    pub fn ver_blind_non_mem_proof_upd_raw(
         &self,
         acc_t: &E::G1Affine,
         blinded_non_mem_proof: &(
@@ -402,7 +405,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         lhs == rhs
     }
 
-    pub fn unblind_non_mem_proof(
+    pub fn unblind_non_mem_proof_raw(
         &self,
         blinded_non_mem_proof: &(E::G1Affine, E::ScalarField),
         st: &(E::ScalarField, E::ScalarField),
@@ -483,12 +486,12 @@ where
     }
 
     fn add(&mut self, element: &Self::Element) -> <Self::Group as Group>::Exponent {
-        BilinearAccumulator::<E>::add(self, element);
+        BilinearAccumulator::<E>::add_raw(self, element);
         *element
     }
 
     fn del(&mut self, element: &Self::Element) {
-        BilinearAccumulator::<E>::del(self, *element);
+        BilinearAccumulator::<E>::del_raw(self, *element);
     }
 
     fn value(&self) -> &<Self::Group as Group>::Element {
@@ -516,7 +519,7 @@ where
         proof: &Self::MembershipProof,
         element: &<Self::Group as Group>::Exponent,
     ) -> bool {
-        BilinearAccumulator::<E>::mem_ver(self, &proof.proof, *element)
+        BilinearAccumulator::<E>::mem_ver_raw(self, &proof.proof, *element)
     }
 
     fn non_mem_proof_create(
@@ -524,12 +527,12 @@ where
         element: &Self::Element,
         _prod: &Self::NonMembershipProduct,
     ) -> AccumulatorResult<Self::NonMembershipProof> {
-        BilinearAccumulator::<E>::non_mem_proof_create(self, *element)
+        BilinearAccumulator::<E>::non_mem_proof_create_raw(self, *element)
             .ok_or(AccumulatorError::NotCoprime)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
-        BilinearAccumulator::<E>::non_mem_ver(self, proof, *element)
+        BilinearAccumulator::<E>::non_mem_ver_raw(self, proof, *element)
     }
 }
 
@@ -556,7 +559,7 @@ where
             .len()
             .saturating_sub(self.poly.coeffs().len());
         let (crs_prime, r) =
-            BilinearAccumulator::<E>::blind_mem_proof(self, &mut rng, &proof.witness_poly, k)
+            BilinearAccumulator::<E>::blind_mem_proof_raw(self, &mut rng, &proof.witness_poly, k)
                 .expect("blind_mem_proof returns Some for any polynomial");
         let pi_blinded = crs_prime[0];
         let bundle = BlindedMembershipBundle {
@@ -579,14 +582,15 @@ where
     )> {
         let q_star = delta.clone();
         let powers_acc_t = self.shift_com(&blinded_proof.poly_s, q_star.coeffs().len());
-        let (pi_prime, poe_eq_proof, q_star_back) = BilinearAccumulator::<E>::blind_mem_proof_upd(
-            self,
-            &blinded_proof.pi_blinded,
-            acc_t,
-            blinded_proof.crs_prime.clone(),
-            q_star,
-            powers_acc_t,
-        );
+        let (pi_prime, poe_eq_proof, q_star_back) =
+            BilinearAccumulator::<E>::blind_mem_proof_upd_raw(
+                self,
+                &blinded_proof.pi_blinded,
+                acc_t,
+                blinded_proof.crs_prime.clone(),
+                q_star,
+                powers_acc_t,
+            );
         Ok((
             UpdatedBlindedMembershipBundle {
                 pi_prime,
@@ -604,7 +608,7 @@ where
         upd_blinded_proof: &Self::UpdatedBlindedMembershipProof,
         aux: &Self::MembershipUpdateAux,
     ) -> bool {
-        BilinearAccumulator::<E>::ver_blind_mem_proof_upd(
+        BilinearAccumulator::<E>::ver_blind_mem_proof_upd_raw(
             self,
             &blinded_proof.pi_blinded,
             &upd_blinded_proof.pi_prime,
@@ -619,7 +623,7 @@ where
         blinded_proof: &Self::BlindedMembershipProof,
         st: &Self::MembershipBlindingFactor,
     ) -> Self::MembershipProof {
-        let pi = BilinearAccumulator::<E>::unblind_mem_proof(&blinded_proof.pi_blinded, st);
+        let pi = BilinearAccumulator::<E>::unblind_mem_proof_raw(&blinded_proof.pi_blinded, st);
         ProverMembershipProof {
             proof: MembershipProof { pi },
             element: E::ScalarField::zero(),
@@ -628,10 +632,10 @@ where
     }
 
     fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
-        let proof = BilinearAccumulator::<E>::non_mem_proof_create(self, *element)
+        let proof = BilinearAccumulator::<E>::non_mem_proof_create_raw(self, *element)
             .expect("blind_non_mem_proof: element must not currently be a member");
         let (((b_r, b_tau_r), y_prime), r) =
-            BilinearAccumulator::<E>::blind_non_mem_proof(self, &proof, *element);
+            BilinearAccumulator::<E>::blind_non_mem_proof_raw(self, &proof, *element);
         BlindedNonMembershipBundle {
             crs_prime: (b_r, b_tau_r),
             y_prime,
@@ -656,7 +660,7 @@ where
             blinded_non_mem_proof.y_prime,
         );
         let ((q_prime, y_prime_t_prime), g2_sn_plus_one) =
-            BilinearAccumulator::<E>::blind_non_mem_proof_upd(
+            BilinearAccumulator::<E>::blind_non_mem_proof_upd_raw(
                 self,
                 &blinded_inner,
                 &blinded_non_mem_proof.acc_t,
@@ -685,7 +689,7 @@ where
             upd_blinded_non_mem_proof.q_prime,
             upd_blinded_non_mem_proof.y_prime_t_prime,
         );
-        BilinearAccumulator::<E>::ver_blind_non_mem_proof_upd(
+        BilinearAccumulator::<E>::ver_blind_non_mem_proof_upd_raw(
             self,
             &blinded_non_mem_proof.acc_t,
             &blinded_inner,
@@ -704,7 +708,7 @@ where
             upd_blinded_non_mem_proof.y_prime_t_prime,
         );
         let st_pair = (*st, upd_blinded_non_mem_proof.y_prime_t);
-        BilinearAccumulator::<E>::unblind_non_mem_proof(
+        BilinearAccumulator::<E>::unblind_non_mem_proof_raw(
             self,
             &upd_inner,
             &st_pair,
@@ -724,12 +728,12 @@ mod tests {
         let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
         let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
         for e in &elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
         let proof = acc
-            .mem_proof_create(elements[2])
+            .mem_proof_create_raw(elements[2])
             .expect("Membership proof creation failed");
-        assert!(acc.mem_ver(&proof, elements[2]));
+        assert!(acc.mem_ver_raw(&proof, elements[2]));
     }
 
     #[test]
@@ -738,12 +742,12 @@ mod tests {
         let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
         let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
         for e in &elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
         let proof = acc
-            .non_mem_proof_create(ark_bls12_381::Fr::from(666))
+            .non_mem_proof_create_raw(ark_bls12_381::Fr::from(666))
             .expect("Non-membership proof creation failed");
-        assert!(acc.non_mem_ver(&proof, ark_bls12_381::Fr::from(666)));
+        assert!(acc.non_mem_ver_raw(&proof, ark_bls12_381::Fr::from(666)));
     }
 
     #[test]
@@ -752,9 +756,9 @@ mod tests {
         let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
         let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
         for e in &elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
-        assert_eq!(acc.mem_proof_create(ark_bls12_381::Fr::from(666)), None);
+        assert_eq!(acc.mem_proof_create_raw(ark_bls12_381::Fr::from(666)), None);
     }
 
     #[test]
@@ -763,9 +767,9 @@ mod tests {
         let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut test_rng(), 16);
         let elements: Vec<ark_bls12_381::Fr> = (1u64..=4).map(ark_bls12_381::Fr::from).collect();
         for e in &elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
-        assert_eq!(acc.non_mem_proof_create(elements[2]), None);
+        assert_eq!(acc.non_mem_proof_create_raw(elements[2]), None);
     }
 
     #[test]
@@ -795,13 +799,13 @@ mod tests {
         let initial_elements: Vec<ark_bls12_381::Fr> =
             (1u64..=3).map(ark_bls12_381::Fr::from).collect();
         for e in &initial_elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
         let element = initial_elements[1];
         let _proof = acc
-            .mem_proof_create(element)
+            .mem_proof_create_raw(element)
             .expect("Membership proof creation failed");
-        let acc_t = acc.value();
+        let acc_t = acc.value_raw();
 
         let s = initial_elements.iter().fold(
             DensePolynomial::from_coefficients_vec(vec![ark_bls12_381::Fr::one()]),
@@ -818,7 +822,7 @@ mod tests {
         let num_added = added_elements.len();
 
         let (crs_prime, r) = acc
-            .blind_mem_proof(&mut test_rng(), &q, num_added)
+            .blind_mem_proof_raw(&mut test_rng(), &q, num_added)
             .expect("Blind membership proof creation failed");
         let pi_blinded = crs_prime
             .first()
@@ -826,7 +830,7 @@ mod tests {
             .expect("blinded CRS must include base term");
 
         for e in &added_elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
 
         let q_star = added_elements.iter().fold(
@@ -841,14 +845,20 @@ mod tests {
         let powers_acc_t = acc.shift_com(&s, q_star.coeffs().len());
 
         let (pi_prime, poe_eq_proof, delta) =
-            acc.blind_mem_proof_upd(&pi_blinded, &acc_t, crs_prime, q_star, powers_acc_t);
+            acc.blind_mem_proof_upd_raw(&pi_blinded, &acc_t, crs_prime, q_star, powers_acc_t);
 
-        assert!(acc.ver_blind_mem_proof_upd(&pi_blinded, &pi_prime, &acc_t, &delta, &poe_eq_proof,));
+        assert!(acc.ver_blind_mem_proof_upd_raw(
+            &pi_blinded,
+            &pi_prime,
+            &acc_t,
+            &delta,
+            &poe_eq_proof,
+        ));
 
-        let pi = BilinearAccumulator::<Bls12_381>::unblind_mem_proof(&pi_prime, &r);
+        let pi = BilinearAccumulator::<Bls12_381>::unblind_mem_proof_raw(&pi_prime, &r);
         let updated_proof = MembershipProof { pi };
 
-        assert!(acc.mem_ver(&updated_proof, element));
+        assert!(acc.mem_ver_raw(&updated_proof, element));
     }
 
     #[test]
@@ -858,38 +868,44 @@ mod tests {
         let initial_elements: Vec<ark_bls12_381::Fr> =
             (1u64..=3).map(ark_bls12_381::Fr::from).collect();
         for e in &initial_elements {
-            acc.add(e);
+            acc.add_raw(e);
         }
 
         let non_member = ark_bls12_381::Fr::from(666u64);
 
         let proof = acc
-            .non_mem_proof_create(non_member)
+            .non_mem_proof_create_raw(non_member)
             .expect("Non-membership proof creation failed");
 
-        assert!(acc.non_mem_ver(&proof, non_member), "initial should verify");
+        assert!(
+            acc.non_mem_ver_raw(&proof, non_member),
+            "initial should verify"
+        );
 
-        let (blinded_non_mem_proof, r) = acc.blind_non_mem_proof(&proof, non_member);
-        let acc_t = acc.value();
+        let (blinded_non_mem_proof, r) = acc.blind_non_mem_proof_raw(&proof, non_member);
+        let acc_t = acc.value_raw();
 
         let sn_plus_one = ark_bls12_381::Fr::from(67u64);
-        acc.add(&sn_plus_one);
+        acc.add_raw(&sn_plus_one);
 
         let (pi_prime_t_prime, g2_sn_plus_one) =
-            acc.blind_non_mem_proof_upd(&blinded_non_mem_proof, &acc_t, &sn_plus_one);
+            acc.blind_non_mem_proof_upd_raw(&blinded_non_mem_proof, &acc_t, &sn_plus_one);
 
-        assert!(acc.ver_blind_non_mem_proof_upd(
+        assert!(acc.ver_blind_non_mem_proof_upd_raw(
             &acc_t,
             &blinded_non_mem_proof,
             &pi_prime_t_prime,
             &g2_sn_plus_one,
         ));
 
-        let updated_proof =
-            acc.unblind_non_mem_proof(&pi_prime_t_prime, &(r, blinded_non_mem_proof.1), non_member);
+        let updated_proof = acc.unblind_non_mem_proof_raw(
+            &pi_prime_t_prime,
+            &(r, blinded_non_mem_proof.1),
+            non_member,
+        );
 
         assert!(
-            acc.non_mem_ver(&updated_proof, non_member),
+            acc.non_mem_ver_raw(&updated_proof, non_member),
             "updated should verify"
         );
     }

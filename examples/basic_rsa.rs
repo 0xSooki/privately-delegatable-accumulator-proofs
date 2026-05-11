@@ -11,15 +11,15 @@ fn main() {
     let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
     let element = BigUint::from(7u32);
-    let ep = acc.add(&element);
+    let ep = acc.add_raw(&element);
     for i in 2u32..5 {
-        acc.add(&BigUint::from(i));
+        acc.add_raw(&BigUint::from(i));
     }
 
     let proof = acc
-        .mem_proof_create(&ep)
+        .mem_proof_create_raw(&ep)
         .expect("element was just added; proof must exist");
-    println!("membership verifies: {}", acc.mem_ver(&proof, &ep));
+    println!("membership verifies: {}", acc.mem_ver_raw(&proof, &ep));
 
     let non_element = BigUint::from(383u32);
     let product = acc
@@ -27,10 +27,10 @@ fn main() {
         .to_bigint()
         .expect("product of positive BigUints is always representable as BigInt");
     let non_proof = acc
-        .non_mem_proof_create(&non_element, &product)
+        .non_mem_proof_create_raw(&non_element, &product)
         .expect("non-element is coprime with the set product");
     println!(
         "non-membership verifies: {}",
-        acc.non_mem_ver(&non_proof, &non_element)
+        acc.non_mem_ver_raw(&non_proof, &non_element)
     );
 }

@@ -21,9 +21,9 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup();
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// let proof = acc.mem_proof_create(&ep).unwrap();
-    /// assert!(acc.mem_ver(&proof, &ep));
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    /// assert!(acc.mem_ver_raw(&proof, &ep));
     /// ```
     pub fn setup() -> Self {
         let mut rng = rand::thread_rng();
@@ -56,7 +56,7 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// assert_eq!(acc.value(), &BigUint::from(2u32));
+    /// assert_eq!(acc.value_raw(), &BigUint::from(2u32));
     /// ```
     pub fn setup_from_params(p: BigUint, q: BigUint, g: BigUint, order: Option<BigUint>) -> Self {
         let n = &p * &q;
@@ -74,9 +74,9 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// // Generates 3072-bit safe primes; use setup_from_params for faster tests.
     /// let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// let proof = acc.mem_proof_create(&ep).unwrap();
-    /// assert!(acc.mem_ver(&proof, &ep));
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    /// assert!(acc.mem_ver_raw(&proof, &ep));
     /// ```
     pub fn setup_trapdoorless() -> Self {
         let mut rng = rand::thread_rng();
@@ -108,8 +108,8 @@ impl RsaAccumulator<RsaGroup> {
     ///     None,
     /// );
     /// acc.set_group_order(Some(BigUint::from(3120u32)));
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep).unwrap(), &ep));
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// assert!(acc.mem_ver_raw(&acc.mem_proof_create_raw(&ep).unwrap(), &ep));
     /// ```
     pub fn set_group_order(&mut self, order: Option<BigUint>) {
         self.group.set_order(order);
@@ -130,8 +130,8 @@ impl RsaAccumulator<RsaGroup> {
     ///     Some(BigUint::from(3120u32)),
     /// );
     /// acc.clear_group_order();
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// assert!(acc.mem_ver(&acc.mem_proof_create(&ep).unwrap(), &ep));
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// assert!(acc.mem_ver_raw(&acc.mem_proof_create_raw(&ep).unwrap(), &ep));
     /// ```
     pub fn clear_group_order(&mut self) {
         self.group.set_order(None);
@@ -151,8 +151,8 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// acc.add(&BigUint::from(2u32));
-    /// acc.add(&BigUint::from(3u32));
+    /// acc.add_raw(&BigUint::from(2u32));
+    /// acc.add_raw(&BigUint::from(3u32));
     /// // Result is reduced modulo the group order (3120).
     /// assert!(acc.calculate_product() < BigUint::from(3120u32));
     /// ```
@@ -178,12 +178,12 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// let initial = acc.value().clone();
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// acc.del(&ep);
-    /// assert_eq!(acc.value(), &initial);
+    /// let initial = acc.value_raw().clone();
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// acc.del_raw(&ep);
+    /// assert_eq!(acc.value_raw(), &initial);
     /// ```
-    pub fn del(&mut self, element: &BigUint) {
+    pub fn del_raw(&mut self, element: &BigUint) {
         if self.set.remove(element) {
             if let Some(o) = self.group.order() {
                 let x_mod_inv = element
@@ -216,12 +216,12 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// acc.add(&BigUint::from(11u32));
-    /// let proof = acc.mem_proof_create(&ep).unwrap();
-    /// assert!(acc.mem_ver(&proof, &ep));
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// acc.add_raw(&BigUint::from(11u32));
+    /// let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    /// assert!(acc.mem_ver_raw(&proof, &ep));
     /// ```
-    pub fn mem_proof_create(&self, element: &BigUint) -> AccumulatorResult<BigUint> {
+    pub fn mem_proof_create_raw(&self, element: &BigUint) -> AccumulatorResult<BigUint> {
         if !self.set.contains(element) {
             return Err(AccumulatorError::ElementNotInSet);
         }
@@ -259,14 +259,14 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// acc.add(&BigUint::from(2u32));
-    /// acc.add(&BigUint::from(3u32));
+    /// acc.add_raw(&BigUint::from(2u32));
+    /// acc.add_raw(&BigUint::from(3u32));
     /// let non_member = BigUint::from(5u32);
     /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
-    /// let proof = acc.non_mem_proof_create(&non_member, &product).unwrap();
-    /// assert!(acc.non_mem_ver(&proof, &non_member));
+    /// let proof = acc.non_mem_proof_create_raw(&non_member, &product).unwrap();
+    /// assert!(acc.non_mem_ver_raw(&proof, &non_member));
     /// ```
-    pub fn non_mem_proof_create(
+    pub fn non_mem_proof_create_raw(
         &self,
         element: &BigUint,
         delta: &BigInt,
@@ -306,14 +306,14 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// acc.add(&BigUint::from(2u32));
-    /// acc.add(&BigUint::from(3u32));
+    /// acc.add_raw(&BigUint::from(2u32));
+    /// acc.add_raw(&BigUint::from(3u32));
     /// let non_member = BigUint::from(5u32);
     /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
-    /// let proof = acc.non_mem_proof_create(&non_member, &product).unwrap();
-    /// assert!(acc.non_mem_ver(&proof, &non_member));
+    /// let proof = acc.non_mem_proof_create_raw(&non_member, &product).unwrap();
+    /// assert!(acc.non_mem_ver_raw(&proof, &non_member));
     /// ```
-    pub fn non_mem_ver(&self, proof: &(BigInt, BigUint), element: &BigUint) -> bool {
+    pub fn non_mem_ver_raw(&self, proof: &(BigInt, BigUint), element: &BigUint) -> bool {
         let lhs = self.group.signed_exp(&self.acc, &proof.0);
         let rhs = self.group.exp(&proof.1, &element);
         self.group.mul(&lhs, &rhs) == self.group.g()
@@ -335,22 +335,22 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// let acc_t = acc.value().clone();
-    /// let proof = acc.mem_proof_create(&ep).unwrap();
-    /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// let acc_t = acc.value_raw().clone();
+    /// let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    /// let (blinded_proof, _st) = acc.blind_mem_proof_raw(&proof);
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
-    /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
+    /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add_raw(e)).collect();
     /// let delta = if let Some(o) = acc.group.order() {
     ///     eps.iter().fold(BigUint::from(1u32), |delta, e| (delta * e) % o)
     /// } else {
     ///     eps.iter().fold(BigUint::from(1u32), |delta, e| delta * e)
     /// };
     /// let delta_int = BigInt::from(delta);
-    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int).unwrap();
-    /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
+    /// let upd = acc.blind_mem_proof_upd_raw(&acc_t, &blinded_proof, &delta_int).unwrap();
+    /// assert!(acc.ver_blind_mem_proof_upd_raw(&acc_t, &blinded_proof, &upd.0, &upd.1));
     /// ```
-    pub fn blind_mem_proof_upd(
+    pub fn blind_mem_proof_upd_raw(
         &self,
         acc_t: &BigUint,
         blinded_proof: &BigUint,
@@ -390,22 +390,22 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// let ep = acc.add(&BigUint::from(7u32));
-    /// let acc_t = acc.value().clone();
-    /// let proof = acc.mem_proof_create(&ep).unwrap();
-    /// let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
+    /// let ep = acc.add_raw(&BigUint::from(7u32));
+    /// let acc_t = acc.value_raw().clone();
+    /// let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    /// let (blinded_proof, _st) = acc.blind_mem_proof_raw(&proof);
     /// let elements_in = vec![BigUint::from(11u32), BigUint::from(13u32)];
-    /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add(e)).collect();
+    /// let eps: Vec<BigUint> = elements_in.iter().map(|e| acc.add_raw(e)).collect();
     /// let delta = if let Some(o) = acc.group.order() {
     ///     eps.iter().fold(BigUint::from(1u32), |delta, e| (delta * e) % o)
     /// } else {
     ///     eps.iter().fold(BigUint::from(1u32), |delta, e| delta * e)
     /// };
     /// let delta_int = BigInt::from(delta);
-    /// let upd = acc.blind_mem_proof_upd(&acc_t, &blinded_proof, &delta_int).unwrap();
-    /// assert!(acc.ver_blind_mem_proof_upd(&acc_t, &blinded_proof, &upd.0, &upd.1));
+    /// let upd = acc.blind_mem_proof_upd_raw(&acc_t, &blinded_proof, &delta_int).unwrap();
+    /// assert!(acc.ver_blind_mem_proof_upd_raw(&acc_t, &blinded_proof, &upd.0, &upd.1));
     /// ```
-    pub fn ver_blind_mem_proof_upd(
+    pub fn ver_blind_mem_proof_upd_raw(
         &self,
         acc_t: &BigUint,
         blinded_proof: &BigUint,
@@ -444,10 +444,10 @@ impl RsaAccumulator<RsaGroup> {
     ///     Some(BigUint::from(3120u32)),
     /// );
     /// let non_member = BigUint::from(17u32);
-    /// let (blinded, q) = acc.blind_non_mem_proof(&non_member);
+    /// let (blinded, q) = acc.blind_non_mem_proof_raw(&non_member);
     /// assert_eq!(blinded, &non_member * &q);
     /// ```
-    pub fn blind_non_mem_proof(&self, element: &BigUint) -> (BigUint, BigUint) {
+    pub fn blind_non_mem_proof_raw(&self, element: &BigUint) -> (BigUint, BigUint) {
         if self.set.contains(element) {
             (BigUint::from(0u32), BigUint::from(1u32))
         } else {
@@ -487,15 +487,15 @@ impl RsaAccumulator<RsaGroup> {
     ///
     /// // With an empty set, the accumulator value is g and delta = 1.
     /// let blinded_non_member = BigUint::from(17u32);
-    /// let updated = acc.blind_non_mem_proof_upd(&blinded_non_member, &BigInt::from(1u32)).unwrap();
+    /// let updated = acc.blind_non_mem_proof_upd_raw(&blinded_non_member, &BigInt::from(1u32)).unwrap();
     ///
-    /// assert!(acc.ver_blind_non_mem_proof_upd(
-    ///     acc.value(),
+    /// assert!(acc.ver_blind_non_mem_proof_upd_raw(
+    ///     acc.value_raw(),
     ///     &blinded_non_member,
     ///     &updated,
     /// ));
     /// ```
-    pub fn blind_non_mem_proof_upd(
+    pub fn blind_non_mem_proof_upd_raw(
         &self,
         blinded_non_mem_proof: &BigUint,
         delta: &BigInt,
@@ -535,11 +535,11 @@ impl RsaAccumulator<RsaGroup> {
     ///     Some(BigUint::from(3120u32)),
     /// );
     /// let non_member = BigUint::from(17u32);
-    /// let blinded = acc.blind_non_mem_proof(&non_member);
-    /// let upd = acc.blind_non_mem_proof_upd(&blinded.0, &BigInt::from(1i32)).unwrap();
-    /// assert!(acc.ver_blind_non_mem_proof_upd(acc.value(), &blinded.0, &upd));
+    /// let blinded = acc.blind_non_mem_proof_raw(&non_member);
+    /// let upd = acc.blind_non_mem_proof_upd_raw(&blinded.0, &BigInt::from(1i32)).unwrap();
+    /// assert!(acc.ver_blind_non_mem_proof_upd_raw(acc.value_raw(), &blinded.0, &upd));
     /// ```
-    pub fn ver_blind_non_mem_proof_upd(
+    pub fn ver_blind_non_mem_proof_upd_raw(
         &self,
         acc_t_prime: &BigUint,
         blinded_non_mem_proof: &BigUint,
@@ -568,14 +568,14 @@ impl RsaAccumulator<RsaGroup> {
     ///     Some(BigUint::from(3120u32)),
     /// );
     /// let non_member = BigUint::from(17u32);
-    /// let (blinded, q) = acc.blind_non_mem_proof(&non_member);
-    /// acc.add(&BigUint::from(5u32));
+    /// let (blinded, q) = acc.blind_non_mem_proof_raw(&non_member);
+    /// acc.add_raw(&BigUint::from(5u32));
     /// let product = acc.calculate_product_unreduced().to_bigint().unwrap();
-    /// let upd = acc.blind_non_mem_proof_upd(&blinded, &product).unwrap();
-    /// let proof = acc.unblind_non_mem_proof(&q, &upd);
-    /// assert!(acc.non_mem_ver(&proof, &non_member));
+    /// let upd = acc.blind_non_mem_proof_upd_raw(&blinded, &product).unwrap();
+    /// let proof = acc.unblind_non_mem_proof_raw(&q, &upd);
+    /// assert!(acc.non_mem_ver_raw(&proof, &non_member));
     /// ```
-    pub fn unblind_non_mem_proof(
+    pub fn unblind_non_mem_proof_raw(
         &self,
         st: &BigUint,
         upd_blinded_non_mem_proof: &(BigInt, BigUint),
@@ -600,8 +600,8 @@ impl RsaAccumulator<RsaGroup> {
     ///     BigUint::from(2u32),
     ///     Some(BigUint::from(3120u32)),
     /// );
-    /// let ep1 = acc.add(&BigUint::from(2u32));
-    /// let ep2 = acc.add(&BigUint::from(3u32));
+    /// let ep1 = acc.add_raw(&BigUint::from(2u32));
+    /// let ep2 = acc.add_raw(&BigUint::from(3u32));
     /// // Each element is stored as its hash-to-prime representative.
     /// assert_eq!(acc.calculate_product_unreduced(), &ep1 * &ep2);
     /// ```
@@ -627,22 +627,22 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
     }
 
     fn add(&mut self, element: &Self::Element) -> <Self::Group as Group>::Exponent {
-        self.add(element)
+        self.add_raw(element)
     }
 
     fn del(&mut self, element: &Self::Element) {
-        self.del(element)
+        self.del_raw(element)
     }
 
     fn value(&self) -> &<Self::Group as Group>::Element {
-        self.value()
+        self.value_raw()
     }
 
     fn mem_proof_create(
         &self,
         element: &<Self::Group as Group>::Exponent,
     ) -> AccumulatorResult<Self::MembershipProof> {
-        self.mem_proof_create(element)
+        self.mem_proof_create_raw(element)
     }
 
     fn mem_ver(
@@ -650,7 +650,7 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
         proof: &Self::MembershipProof,
         element: &<Self::Group as Group>::Exponent,
     ) -> bool {
-        self.mem_ver(proof, element)
+        self.mem_ver_raw(proof, element)
     }
 
     fn non_mem_proof_create(
@@ -658,11 +658,11 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
         element: &Self::Element,
         delta: &Self::NonMembershipProduct,
     ) -> AccumulatorResult<Self::NonMembershipProof> {
-        self.non_mem_proof_create(element, delta)
+        self.non_mem_proof_create_raw(element, delta)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
-        self.non_mem_ver(proof, element)
+        self.non_mem_ver_raw(proof, element)
     }
 }
 
@@ -679,7 +679,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         &self,
         proof: &Self::MembershipProof,
     ) -> (Self::BlindedMembershipProof, Self::MembershipBlindingFactor) {
-        self.blind_mem_proof(proof)
+        self.blind_mem_proof_raw(proof)
     }
 
     fn blind_mem_proof_upd(
@@ -692,7 +692,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     )> {
-        self.blind_mem_proof_upd(acc_t, blinded_proof, delta)
+        self.blind_mem_proof_upd_raw(acc_t, blinded_proof, delta)
     }
 
     fn ver_blind_mem_proof_upd(
@@ -702,7 +702,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         upd_blinded_proof: &Self::UpdatedBlindedMembershipProof,
         aux: &Self::MembershipUpdateAux,
     ) -> bool {
-        self.ver_blind_mem_proof_upd(acc_t, blinded_proof, upd_blinded_proof, aux)
+        self.ver_blind_mem_proof_upd_raw(acc_t, blinded_proof, upd_blinded_proof, aux)
     }
 
     fn unblind_mem_proof(
@@ -710,11 +710,11 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         blinded_proof: &Self::BlindedMembershipProof,
         st: &Self::MembershipBlindingFactor,
     ) -> Self::MembershipProof {
-        self.unblind_mem_proof(blinded_proof, st)
+        self.unblind_mem_proof_raw(blinded_proof, st)
     }
 
     fn blind_non_mem_proof(&self, element: &Self::Element) -> Self::BlindedNonMembershipProof {
-        self.blind_non_mem_proof(element)
+        self.blind_non_mem_proof_raw(element)
     }
 
     fn blind_non_mem_proof_upd(
@@ -722,7 +722,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
     ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
-        self.blind_non_mem_proof_upd(&blinded_non_mem_proof.0, delta)
+        self.blind_non_mem_proof_upd_raw(&blinded_non_mem_proof.0, delta)
     }
 
     fn ver_blind_non_mem_proof_upd(
@@ -731,7 +731,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
     ) -> bool {
-        self.ver_blind_non_mem_proof_upd(
+        self.ver_blind_non_mem_proof_upd_raw(
             acc_t_prime,
             &blinded_non_mem_proof.0,
             upd_blinded_non_mem_proof,
@@ -743,7 +743,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         st: &<Self::Group as Group>::Exponent,
         upd_blinded_non_mem_proof: &Self::UpdatedBlindedNonMembershipProof,
     ) -> Self::NonMembershipProof {
-        self.unblind_non_mem_proof(st, upd_blinded_non_mem_proof)
+        self.unblind_non_mem_proof_raw(st, upd_blinded_non_mem_proof)
     }
 }
 
@@ -759,8 +759,8 @@ mod trapdoored_tests {
         let initial_acc = acc.acc.clone();
         let element = BigUint::from_bytes_be(b"test_element");
 
-        let ep = acc.add(&element);
-        acc.del(&ep);
+        let ep = acc.add_raw(&element);
+        acc.del_raw(&ep);
 
         assert_eq!(
             acc.acc, initial_acc,
@@ -772,35 +772,35 @@ mod trapdoored_tests {
     fn test_gen_mem_proof() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
         let element = BigUint::from(7usize);
-        let ep = acc.add(&element);
+        let ep = acc.add_raw(&element);
 
         for i in 2..5 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep).unwrap();
+        let proof = acc.mem_proof_create_raw(&ep).unwrap();
 
-        assert!(acc.mem_ver(&proof, &ep));
+        assert!(acc.mem_ver_raw(&proof, &ep));
     }
 
     #[test]
     fn test_non_mem_proof() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
-        acc.add(&BigUint::from(2u32));
-        acc.add(&BigUint::from(3u32));
-        acc.add(&BigUint::from(7u32));
+        acc.add_raw(&BigUint::from(2u32));
+        acc.add_raw(&BigUint::from(3u32));
+        acc.add_raw(&BigUint::from(7u32));
 
         let non_member = BigUint::from(5u32);
 
         let proof = acc
-            .non_mem_proof_create(
+            .non_mem_proof_create_raw(
                 &non_member,
                 &acc.calculate_product_unreduced().to_bigint().unwrap(),
             )
             .unwrap();
         assert!(
-            acc.non_mem_ver(&proof, &non_member),
+            acc.non_mem_ver_raw(&proof, &non_member),
             "Non-membership proof should verify"
         );
     }
@@ -810,22 +810,22 @@ mod trapdoored_tests {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
         let element = BigUint::from(7usize);
-        let ep: BigUint = acc.add(&element);
+        let ep: BigUint = acc.add_raw(&element);
 
         for i in 2..5 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep).unwrap();
+        let proof = acc.mem_proof_create_raw(&ep).unwrap();
 
-        let blinded_proof = acc.blind_mem_proof(&proof);
+        let blinded_proof = acc.blind_mem_proof_raw(&proof);
 
         assert!(
             blinded_proof.0 != proof,
             "Proof is not blinded successfully"
         );
 
-        let unblinded_proof = acc.unblind_mem_proof(&blinded_proof.0, &blinded_proof.1);
+        let unblinded_proof = acc.unblind_mem_proof_raw(&blinded_proof.0, &blinded_proof.1);
         assert!(
             unblinded_proof == proof,
             "Proof is not unblinded successfully"
@@ -836,11 +836,11 @@ mod trapdoored_tests {
     fn test_blind_mem_proof_upd_ver() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
-        let ep = acc.add(&BigUint::from(200003u32));
+        let ep = acc.add_raw(&BigUint::from(200003u32));
 
         let acct = acc.acc.clone();
 
-        let proof = acc.mem_proof_create(&ep).unwrap();
+        let proof = acc.mem_proof_create_raw(&ep).unwrap();
 
         let elements_in = vec![
             BigUint::from(65537u32),
@@ -850,7 +850,10 @@ mod trapdoored_tests {
             BigUint::from(15485863u32),
         ];
 
-        let elements_in = elements_in.iter().map(|e| acc.add(e)).collect::<Vec<_>>();
+        let elements_in = elements_in
+            .iter()
+            .map(|e| acc.add_raw(e))
+            .collect::<Vec<_>>();
         let delta = if let Some(o) = acc.group.order() {
             elements_in
                 .iter()
@@ -862,13 +865,13 @@ mod trapdoored_tests {
         };
         let delta_int = delta.to_bigint().unwrap();
 
-        let blinded_proof = acc.blind_mem_proof(&proof);
+        let blinded_proof = acc.blind_mem_proof_raw(&proof);
 
         let upd_blind_proof = acc
-            .blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int)
+            .blind_mem_proof_upd_raw(&acct, &blinded_proof.0, &delta_int)
             .unwrap();
 
-        assert!(acc.ver_blind_mem_proof_upd(
+        assert!(acc.ver_blind_mem_proof_upd_raw(
             &acct,
             &blinded_proof.0,
             &upd_blind_proof.0,
@@ -881,27 +884,28 @@ mod trapdoored_tests {
         let mut acc = RsaAccumulator::<RsaGroup>::setup();
 
         for i in 2..5 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
         let non_member = BigUint::from(7usize);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof_raw(&non_member);
 
         for i in 10..12 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
         let upd_blind_non_mem_proof = acc
-            .blind_non_mem_proof_upd(
+            .blind_non_mem_proof_upd_raw(
                 &blinded_proof.0,
                 &BigInt::from(acc.calculate_product_unreduced()),
             )
             .unwrap();
 
-        let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
+        let unblinded_proof =
+            acc.unblind_non_mem_proof_raw(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
-            acc.non_mem_ver(&unblinded_proof, &non_member),
+            acc.non_mem_ver_raw(&unblinded_proof, &non_member),
             "Non-membership proof should verify after unblinding"
         );
     }
@@ -912,7 +916,7 @@ mod trapdoored_tests {
 
         let non_member = BigUint::from(200003u32);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof_raw(&non_member);
 
         let elements_in = vec![
             BigUint::from(65537u32),
@@ -923,20 +927,20 @@ mod trapdoored_tests {
         ];
 
         for elem in &elements_in {
-            acc.add(elem);
+            acc.add_raw(elem);
         }
 
         let acctprime = acc.acc.clone();
 
         let upd_blind_proof = acc
-            .blind_non_mem_proof_upd(
+            .blind_non_mem_proof_upd_raw(
                 &blinded_proof.0,
                 &BigInt::from(acc.calculate_product_unreduced()),
             )
             .unwrap();
 
         assert!(
-            acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof),
+            acc.ver_blind_non_mem_proof_upd_raw(&acctprime, &blinded_proof.0, &upd_blind_proof),
             "Couldnt verify"
         );
     }
@@ -954,8 +958,8 @@ mod trapdoorless_tests {
         let initial_acc = acc.acc.clone();
         let element = BigUint::from_bytes_be(b"test_element");
 
-        let ep = acc.add(&element);
-        acc.del(&ep);
+        let ep = acc.add_raw(&element);
+        acc.del_raw(&ep);
 
         assert_eq!(
             acc.acc, initial_acc,
@@ -968,35 +972,35 @@ mod trapdoorless_tests {
         let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
         let element = BigUint::from(7usize);
 
-        let ep = acc.add(&element);
+        let ep = acc.add_raw(&element);
 
         for i in 2..5 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep).unwrap();
+        let proof = acc.mem_proof_create_raw(&ep).unwrap();
 
-        assert!(acc.mem_ver(&proof, &ep));
+        assert!(acc.mem_ver_raw(&proof, &ep));
     }
 
     #[test]
     fn test_non_mem_proof() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
 
-        acc.add(&BigUint::from(2u32));
-        acc.add(&BigUint::from(3u32));
-        acc.add(&BigUint::from(7u32));
+        acc.add_raw(&BigUint::from(2u32));
+        acc.add_raw(&BigUint::from(3u32));
+        acc.add_raw(&BigUint::from(7u32));
 
         let non_member = BigUint::from(5u32);
 
         let proof = acc
-            .non_mem_proof_create(
+            .non_mem_proof_create_raw(
                 &non_member,
                 &(acc.calculate_product_unreduced().to_bigint().unwrap()),
             )
             .unwrap();
         assert!(
-            acc.non_mem_ver(&proof, &non_member),
+            acc.non_mem_ver_raw(&proof, &non_member),
             "Non-membership proof should verify"
         );
     }
@@ -1006,22 +1010,22 @@ mod trapdoorless_tests {
         let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
 
         let element = BigUint::from(7usize);
-        let ep: BigUint = acc.add(&element);
+        let ep: BigUint = acc.add_raw(&element);
 
         for i in 2..5 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
-        let proof = acc.mem_proof_create(&ep).unwrap();
+        let proof = acc.mem_proof_create_raw(&ep).unwrap();
 
-        let blinded_proof = acc.blind_mem_proof(&proof);
+        let blinded_proof = acc.blind_mem_proof_raw(&proof);
 
         assert!(
             blinded_proof.0 != proof,
             "Proof is not blinded successfully"
         );
 
-        let unblinded_proof = acc.unblind_mem_proof(&blinded_proof.0, &blinded_proof.1);
+        let unblinded_proof = acc.unblind_mem_proof_raw(&blinded_proof.0, &blinded_proof.1);
         assert!(
             unblinded_proof == proof,
             "Proof is not unblinded successfully"
@@ -1032,13 +1036,13 @@ mod trapdoorless_tests {
     fn test_blind_mem_proof_upd_ver() {
         let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
 
-        let ep = acc.add(&BigUint::from(200003u32));
+        let ep = acc.add_raw(&BigUint::from(200003u32));
 
         let acct = acc.acc.clone();
 
-        let proof = acc.mem_proof_create(&ep).unwrap();
+        let proof = acc.mem_proof_create_raw(&ep).unwrap();
 
-        let blinded_proof = acc.blind_mem_proof(&proof);
+        let blinded_proof = acc.blind_mem_proof_raw(&proof);
 
         let elements = vec![
             BigUint::from(65537u32),
@@ -1048,7 +1052,7 @@ mod trapdoorless_tests {
             BigUint::from(15485863u32),
         ];
 
-        let elements_in = elements.iter().map(|e| acc.add(e)).collect::<Vec<_>>();
+        let elements_in = elements.iter().map(|e| acc.add_raw(e)).collect::<Vec<_>>();
         let delta = if let Some(o) = acc.group.order() {
             elements_in
                 .iter()
@@ -1061,10 +1065,10 @@ mod trapdoorless_tests {
         let delta_int = delta.to_bigint().unwrap();
 
         let upd_blind_proof = acc
-            .blind_mem_proof_upd(&acct, &blinded_proof.0, &delta_int)
+            .blind_mem_proof_upd_raw(&acct, &blinded_proof.0, &delta_int)
             .unwrap();
 
-        assert!(acc.ver_blind_mem_proof_upd(
+        assert!(acc.ver_blind_mem_proof_upd_raw(
             &acct,
             &blinded_proof.0,
             &upd_blind_proof.0,
@@ -1077,27 +1081,28 @@ mod trapdoorless_tests {
         let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
 
         for i in 2..5 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
         let non_member = BigUint::from(7usize);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof_raw(&non_member);
 
         for i in 10..12 {
-            acc.add(&BigUint::from(i as usize));
+            acc.add_raw(&BigUint::from(i as usize));
         }
 
         let upd_blind_non_mem_proof = acc
-            .blind_non_mem_proof_upd(
+            .blind_non_mem_proof_upd_raw(
                 &blinded_proof.0,
                 &BigInt::from(acc.calculate_product_unreduced()),
             )
             .unwrap();
 
-        let unblinded_proof = acc.unblind_non_mem_proof(&blinded_proof.1, &upd_blind_non_mem_proof);
+        let unblinded_proof =
+            acc.unblind_non_mem_proof_raw(&blinded_proof.1, &upd_blind_non_mem_proof);
         assert!(
-            acc.non_mem_ver(&unblinded_proof, &non_member),
+            acc.non_mem_ver_raw(&unblinded_proof, &non_member),
             "Non-membership proof should verify after unblinding"
         );
     }
@@ -1108,7 +1113,7 @@ mod trapdoorless_tests {
 
         let non_member = BigUint::from(200003u32);
 
-        let blinded_proof = acc.blind_non_mem_proof(&non_member);
+        let blinded_proof = acc.blind_non_mem_proof_raw(&non_member);
 
         let elements_in = vec![
             BigUint::from(65537u32),
@@ -1119,20 +1124,20 @@ mod trapdoorless_tests {
         ];
 
         for elem in &elements_in {
-            acc.add(elem);
+            acc.add_raw(elem);
         }
 
         let acctprime = acc.acc.clone();
 
         let upd_blind_proof = acc
-            .blind_non_mem_proof_upd(
+            .blind_non_mem_proof_upd_raw(
                 &blinded_proof.0,
                 &BigInt::from(acc.calculate_product_unreduced()),
             )
             .unwrap();
 
         assert!(
-            acc.ver_blind_non_mem_proof_upd(&acctprime, &blinded_proof.0, &upd_blind_proof),
+            acc.ver_blind_non_mem_proof_upd_raw(&acctprime, &blinded_proof.0, &upd_blind_proof),
             "Couldnt verify"
         );
     }

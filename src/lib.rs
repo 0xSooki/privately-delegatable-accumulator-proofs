@@ -18,9 +18,9 @@
 //! use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
 //!
 //! let mut acc = RsaAccumulator::<RsaGroup>::setup();
-//! let ep = acc.add(&BigUint::from(7u32));
-//! let proof = acc.mem_proof_create(&ep).unwrap();
-//! assert!(acc.mem_ver(&proof, &ep));
+//! let ep = acc.add_raw(&BigUint::from(7u32));
+//! let proof = acc.mem_proof_create_raw(&ep).unwrap();
+//! assert!(acc.mem_ver_raw(&proof, &ep));
 //! ```
 
 pub mod error;

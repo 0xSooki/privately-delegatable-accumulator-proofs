@@ -16,7 +16,7 @@ pub struct RsaAccumulator<G: Group> {
 }
 
 impl<G: Group> RsaAccumulator<G> {
-    pub fn new(group: G) -> Self {
+    pub fn new_raw(group: G) -> Self {
         let acc = group.g();
         Self {
             group,
@@ -25,11 +25,11 @@ impl<G: Group> RsaAccumulator<G> {
         }
     }
 
-    pub fn value(&self) -> &G::Element {
+    pub fn value_raw(&self) -> &G::Element {
         &self.acc
     }
 
-    pub fn add<T: ToString>(&mut self, element: &T) -> G::Exponent {
+    pub fn add_raw<T: ToString>(&mut self, element: &T) -> G::Exponent {
         let x_str = element.to_string();
         let x_prime = self.group.hash_to_prime(x_str.as_bytes());
 
@@ -40,18 +40,22 @@ impl<G: Group> RsaAccumulator<G> {
         x_prime
     }
 
-    pub fn mem_ver(&self, proof: &G::Element, element: &G::Exponent) -> bool {
+    pub fn mem_ver_raw(&self, proof: &G::Element, element: &G::Exponent) -> bool {
         self.group.exp(proof, element) == self.acc
     }
 
-    pub fn blind_mem_proof(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
+    pub fn blind_mem_proof_raw(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
         let blinder = self.sample_blinder();
         let mask = self.group.exp(&self.group.g(), &blinder);
         let blinded_proof = self.group.mul(proof, &mask);
         (blinded_proof, blinder)
     }
 
-    pub fn unblind_mem_proof(&self, blinded_proof: &G::Element, st: &G::Exponent) -> G::Element {
+    pub fn unblind_mem_proof_raw(
+        &self,
+        blinded_proof: &G::Element,
+        st: &G::Exponent,
+    ) -> G::Element {
         let st_mask = self.group.exp(&self.group.g(), st);
         let st_inv = self.group.inv(&st_mask);
         self.group.mul(blinded_proof, &st_inv)
