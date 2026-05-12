@@ -615,7 +615,6 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
     type Element = BigUint;
     type MembershipProof = BigUint;
     type NonMembershipProof = (BigInt, BigUint);
-    type NonMembershipProduct = BigInt;
 
     fn new(group: Self::Group) -> Self {
         let acc = group.g();
@@ -656,9 +655,12 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
     fn non_mem_proof_create(
         &self,
         element: &Self::Element,
-        delta: &Self::NonMembershipProduct,
     ) -> AccumulatorResult<Self::NonMembershipProof> {
-        self.non_mem_proof_create_raw(element, delta)
+        let product = self
+            .calculate_product_unreduced()
+            .to_bigint()
+            .expect("BigUint always converts to BigInt");
+        self.non_mem_proof_create_raw(element, &product)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
@@ -673,7 +675,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
     type MembershipUpdateAux = Aux;
     type BlindedNonMembershipProof = (BigUint, BigUint);
     type UpdatedBlindedNonMembershipProof = (BigInt, BigUint);
-    type Delta = BigInt;
+    type Delta = Vec<BigUint>;
 
     fn blind_mem_proof(
         &self,
@@ -692,7 +694,15 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     )> {
-        self.blind_mem_proof_upd_raw(acc_t, blinded_proof, delta)
+        let product = if let Some(o) = self.group.order() {
+            delta.iter().fold(BigUint::one(), |acc, e| (acc * e) % o)
+        } else {
+            delta.iter().fold(BigUint::one(), |acc, e| acc * e)
+        };
+        let delta_int = product
+            .to_bigint()
+            .expect("BigUint always converts to BigInt");
+        self.blind_mem_proof_upd_raw(acc_t, blinded_proof, &delta_int)
     }
 
     fn ver_blind_mem_proof_upd(
@@ -722,7 +732,11 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<RsaGroup> {
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
     ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
-        self.blind_non_mem_proof_upd_raw(&blinded_non_mem_proof.0, delta)
+        let product: BigUint = delta.iter().product();
+        let delta_int = product
+            .to_bigint()
+            .expect("BigUint always converts to BigInt");
+        self.blind_non_mem_proof_upd_raw(&blinded_non_mem_proof.0, &delta_int)
     }
 
     fn ver_blind_non_mem_proof_upd(

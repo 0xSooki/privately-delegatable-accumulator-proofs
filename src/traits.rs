@@ -50,7 +50,6 @@ pub trait Accumulator {
     type Element;
     type MembershipProof;
     type NonMembershipProof;
-    type NonMembershipProduct;
 
     /// Create a new accumulator with the given group
     fn new(group: Self::Group) -> Self;
@@ -88,7 +87,6 @@ pub trait Accumulator {
     fn non_mem_proof_create(
         &self,
         element: &Self::Element,
-        prod: &Self::NonMembershipProduct,
     ) -> AccumulatorResult<Self::NonMembershipProof>;
 
     /// Verify a non-membership proof

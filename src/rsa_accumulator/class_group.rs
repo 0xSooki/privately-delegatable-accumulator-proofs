@@ -218,7 +218,6 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     type Element = ClassGroupExponent;
     type MembershipProof = ClassGroupElement;
     type NonMembershipProof = (BigInt, ClassGroupElement);
-    type NonMembershipProduct = BigInt;
 
     fn new(group: Self::Group) -> Self {
         unsafe { pari_init(PARI_STACK_SIZE_BYTES, 2) };
@@ -260,9 +259,9 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     fn non_mem_proof_create(
         &self,
         element: &Self::Element,
-        prod: &Self::NonMembershipProduct,
     ) -> AccumulatorResult<Self::NonMembershipProof> {
-        self.non_mem_proof_create_raw(element, prod)
+        let product = self.calculate_product_unreduced();
+        self.non_mem_proof_create_raw(element, &product)
     }
 
     fn non_mem_ver(&self, proof: &Self::NonMembershipProof, element: &Self::Element) -> bool {
@@ -277,7 +276,7 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
     type MembershipUpdateAux = ClassGroupAux;
     type BlindedNonMembershipProof = (ClassGroupExponent, ClassGroupExponent);
     type UpdatedBlindedNonMembershipProof = (BigInt, ClassGroupElement);
-    type Delta = BigInt;
+    type Delta = Vec<ClassGroupExponent>;
 
     fn blind_mem_proof(
         &self,
@@ -296,7 +295,11 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     )> {
-        self.blind_mem_proof_upd_raw(acc_t, blinded_proof, delta)
+        let product = delta
+            .iter()
+            .map(class_exp_to_num)
+            .fold(BigInt::one(), |acc, v| acc * v);
+        self.blind_mem_proof_upd_raw(acc_t, blinded_proof, &product)
     }
 
     fn ver_blind_mem_proof_upd(
@@ -326,7 +329,11 @@ impl PrivatelyDelegatableAccumulator for RsaAccumulator<ClassGroup> {
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
     ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
-        self.blind_non_mem_proof_upd_raw(&blinded_non_mem_proof.0, delta)
+        let product = delta
+            .iter()
+            .map(class_exp_to_num)
+            .fold(BigInt::one(), |acc, v| acc * v);
+        self.blind_non_mem_proof_upd_raw(&blinded_non_mem_proof.0, &product)
     }
 
     fn ver_blind_non_mem_proof_upd(

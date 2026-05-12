@@ -473,7 +473,6 @@ where
     type Element = E::ScalarField;
     type MembershipProof = ProverMembershipProof<E>;
     type NonMembershipProof = NonMembershipProof<E>;
-    type NonMembershipProduct = ();
 
     fn new(group: Self::Group) -> Self {
         let acc = group.crs_g1[0];
@@ -525,7 +524,6 @@ where
     fn non_mem_proof_create(
         &self,
         element: &Self::Element,
-        _prod: &Self::NonMembershipProduct,
     ) -> AccumulatorResult<Self::NonMembershipProof> {
         BilinearAccumulator::<E>::non_mem_proof_create_raw(self, *element)
             .ok_or(AccumulatorError::NotCoprime)
@@ -546,7 +544,7 @@ where
     type MembershipUpdateAux = MembershipUpdateAux<E>;
     type BlindedNonMembershipProof = BlindedNonMembershipBundle<E>;
     type UpdatedBlindedNonMembershipProof = UpdatedBlindedNonMembershipBundle<E>;
-    type Delta = DensePolynomial<E::ScalarField>;
+    type Delta = Vec<E::ScalarField>;
 
     fn blind_mem_proof(
         &self,
@@ -580,7 +578,14 @@ where
         Self::MembershipUpdateAux,
         <Self::Group as Group>::Element,
     )> {
-        let q_star = delta.clone();
+        let q_star = delta.iter().fold(
+            DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]),
+            |acc, xi| {
+                let factor =
+                    DensePolynomial::from_coefficients_vec(vec![-*xi, E::ScalarField::one()]);
+                &acc * &factor
+            },
+        );
         let powers_acc_t = self.shift_com(&blinded_proof.poly_s, q_star.coeffs().len());
         let (pi_prime, poe_eq_proof, q_star_back) =
             BilinearAccumulator::<E>::blind_mem_proof_upd_raw(
@@ -650,11 +655,10 @@ where
         blinded_non_mem_proof: &Self::BlindedNonMembershipProof,
         delta: &Self::Delta,
     ) -> AccumulatorResult<Self::UpdatedBlindedNonMembershipProof> {
-        let coeffs = delta.coeffs();
-        if coeffs.len() != 2 || !coeffs[1].is_one() {
+        if delta.len() != 1 {
             return Err(AccumulatorError::NotCoprime);
         }
-        let sn_plus_one = -coeffs[0];
+        let sn_plus_one = delta[0];
         let blinded_inner = (
             blinded_non_mem_proof.crs_prime,
             blinded_non_mem_proof.y_prime,
@@ -957,7 +961,6 @@ mod trait_tests {
         let proof = <BilinearAccumulator<Bls12_381> as Accumulator>::non_mem_proof_create(
             &acc,
             &non_member,
-            &(),
         )
         .expect("trait non_mem_proof_create");
         assert!(
@@ -988,7 +991,7 @@ mod trait_tests {
         for e in &added {
             <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, e);
         }
-        let delta = product_poly(&added);
+        let delta = added.clone();
 
         let (upd, aux, _new_acc) =
             <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::blind_mem_proof_upd(
@@ -1029,7 +1032,7 @@ mod trait_tests {
 
         let added = Fr::from(67u64);
         <BilinearAccumulator<Bls12_381> as Accumulator>::add(&mut acc, &added);
-        let delta = linear_factor(added);
+        let delta = vec![added];
 
         let upd =
             <BilinearAccumulator<Bls12_381> as PrivatelyDelegatableAccumulator>::blind_non_mem_proof_upd(
