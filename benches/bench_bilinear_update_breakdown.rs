@@ -105,7 +105,7 @@ fn prepare_bilinear_mem_context(batch_size: usize) -> BilinearMemContext {
         .first()
         .copied()
         .expect("blinded CRS must include base term");
-    let acc_t = acc.value_raw();
+    let acc_t = *acc.value();
 
     let update_elements: Vec<Fr> = (10_000u64..).take(batch_size).map(Fr::from).collect();
     let q_star = build_poly_from_roots(&update_elements);
@@ -114,7 +114,7 @@ fn prepare_bilinear_mem_context(batch_size: usize) -> BilinearMemContext {
     for root in &update_elements {
         acc.add_raw(root);
     }
-    let acc_t_prime = acc.value_raw();
+    let acc_t_prime = *acc.value();
 
     let required_len = q_star.coeffs().len();
     let powers_for_pi = Powers::<Bls12_381> {
@@ -174,10 +174,10 @@ fn prepare_bilinear_non_mem_context() -> BilinearNonMemContext {
         .expect("non-membership proof creation failed");
     let (blinded_non_mem_proof, _r) = acc.blind_non_mem_proof_raw(&non_mem_proof, non_member);
 
-    let acc_t = acc.value_raw();
+    let acc_t = *acc.value();
     let sn_plus_one = Fr::from(UPDATE);
     acc.add_raw(&sn_plus_one);
-    let acc_t_prime = acc.value_raw();
+    let acc_t_prime = *acc.value();
 
     let q_prime = (blinded_non_mem_proof.0 .1.into_group()
         - blinded_non_mem_proof.0 .0.into_group() * sn_plus_one)

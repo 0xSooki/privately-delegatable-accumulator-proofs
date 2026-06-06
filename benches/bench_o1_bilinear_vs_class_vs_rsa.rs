@@ -6,7 +6,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 #[cfg(feature = "class-group")]
 use private_accumulator_proof_delegation::groups::ClassGroup;
 use private_accumulator_proof_delegation::{
-    groups::RsaGroup, BilinearAccumulator, Group, RsaAccumulator,
+    groups::RsaGroup, Accumulator, BilinearAccumulator, Group, RsaAccumulator,
 };
 
 const MEMBER_RAW: u64 = 200_003;
@@ -53,7 +53,7 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
 
     let mut rsa_acc_mem_upd = rsa_acc_mem.clone();
     let rsa_blinded_mem_for_ver = rsa_blinded_mem.0.clone();
-    let rsa_acc_t = rsa_acc_mem_upd.value_raw().clone();
+    let rsa_acc_t = rsa_acc_mem_upd.value().clone();
     let rsa_update_exp = rsa_acc_mem_upd.add_raw(&UPDATE_RAW);
     let rsa_update_delta = num_bigint::BigInt::from(rsa_update_exp);
     let (rsa_upd_blinded_mem, rsa_mem_aux, _) = rsa_acc_mem_upd
@@ -97,7 +97,7 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
 
         let mut class_acc_mem_upd = class_acc_mem.clone();
         let class_blinded_mem_for_ver = class_blinded_mem.0.clone();
-        let class_acc_t = class_acc_mem_upd.value_raw().clone();
+        let class_acc_t = class_acc_mem_upd.value().clone();
         let class_update_exp = class_acc_mem_upd.add_raw(&UPDATE_RAW);
         let class_update_delta = class_update_exp.0.clone();
         let (class_upd_blinded_mem, class_mem_aux, _) = class_acc_mem_upd
@@ -175,7 +175,7 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
         .expect("blinded CRS must include base term");
 
     let mut bilinear_acc_mem_upd = bilinear_acc_mem.clone();
-    let bilinear_acc_t = bilinear_acc_mem_upd.value_raw();
+    let bilinear_acc_t = *bilinear_acc_mem_upd.value();
     let bilinear_q_star = DensePolynomial::from_coefficients_vec(vec![-update, Fr::from(1u64)]);
     let bilinear_powers_acc_t =
         bilinear_acc_mem_upd.shift_com(&bilinear_s_poly, bilinear_q_star.coeffs().len());
@@ -227,7 +227,7 @@ fn benchmark_o1_non_membership_ops(c: &mut Criterion) {
 
     let mut rsa_acc_non_mem_upd = rsa_acc_non_mem.clone();
     rsa_acc_non_mem_upd.add_raw(&UPDATE_RAW);
-    let rsa_acc_t_prime = rsa_acc_non_mem_upd.value_raw().clone();
+    let rsa_acc_t_prime = rsa_acc_non_mem_upd.value().clone();
     let rsa_delta = num_bigint::BigInt::from(rsa_acc_non_mem_upd.calculate_product());
     let rsa_upd_blinded_non_mem = rsa_acc_non_mem_upd
         .blind_non_mem_proof_upd_raw(&rsa_blinded_non_mem.0, &rsa_delta)
@@ -271,7 +271,7 @@ fn benchmark_o1_non_membership_ops(c: &mut Criterion) {
 
         let mut class_acc_non_mem_upd = class_acc_non_mem.clone();
         class_acc_non_mem_upd.add_raw(&UPDATE_RAW);
-        let class_acc_t_prime = class_acc_non_mem_upd.value_raw().clone();
+        let class_acc_t_prime = class_acc_non_mem_upd.value().clone();
         let class_delta = class_acc_non_mem_upd.calculate_product_unreduced();
         let class_upd_blinded_non_mem = class_acc_non_mem_upd
             .blind_non_mem_proof_upd_raw(&class_blinded_non_mem.0, &class_delta)
@@ -318,7 +318,7 @@ fn benchmark_o1_non_membership_ops(c: &mut Criterion) {
         bilinear_acc_non_mem.blind_non_mem_proof_raw(&bilinear_non_mem_proof, bilinear_non_member);
 
     let mut bilinear_acc_non_mem_upd = bilinear_acc_non_mem.clone();
-    let bilinear_acc_t = bilinear_acc_non_mem_upd.value_raw();
+    let bilinear_acc_t = *bilinear_acc_non_mem_upd.value();
     bilinear_acc_non_mem_upd.add_raw(&update);
     let (bilinear_upd_blinded_non_mem, bilinear_g2_sn_plus_one) = bilinear_acc_non_mem_upd
         .blind_non_mem_proof_upd_raw(&bilinear_blinded_non_mem, &bilinear_acc_t, &update);

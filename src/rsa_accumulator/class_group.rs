@@ -238,7 +238,7 @@ impl Accumulator for RsaAccumulator<ClassGroup> {
     }
 
     fn value(&self) -> &<Self::Group as Group>::Element {
-        self.value_raw()
+        self.value()
     }
 
     fn mem_proof_create(

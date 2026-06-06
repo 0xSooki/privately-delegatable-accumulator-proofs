@@ -196,7 +196,7 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                     for sn_plus_one in bilinear_update_elements.iter().take(size) {
                         let (blinded_non_mem_proof, r) = acc_for_chain
                             .blind_non_mem_proof_raw(&proof_for_chain, non_element_bilinear);
-                        let acc_t = acc_for_chain.value_raw();
+                        let acc_t = acc_for_chain.value();
 
                         let mut acc_after_update = acc_for_chain.clone();
                         acc_after_update.add_raw(sn_plus_one);
@@ -366,7 +366,7 @@ fn benchmark_bilinear_vs_class_vs_rsa_trapdoorless(c: &mut Criterion) {
                                 .first()
                                 .copied()
                                 .expect("blinded CRS must include base term");
-                            let acc_t = acc.value_raw();
+                            let acc_t = acc.value();
                             let q_star = elements_in.iter().fold(
                                 DensePolynomial::from_coefficients_vec(vec![Fr::from(1u64)]),
                                 |acc_poly, xi| {

@@ -64,6 +64,10 @@ impl RsaAccumulator<RsaGroup> {
         Self::new(group)
     }
 
+    pub fn value_raw(&self) -> &BigUint {
+        &self.acc
+    }
+
     /// Creates a new RSA accumulator without knowledge of the group order (trapdoorless).
     ///
     /// # Examples
@@ -634,7 +638,7 @@ impl Accumulator for RsaAccumulator<RsaGroup> {
     }
 
     fn value(&self) -> &<Self::Group as Group>::Element {
-        self.value_raw()
+        &self.acc
     }
 
     fn mem_proof_create(
