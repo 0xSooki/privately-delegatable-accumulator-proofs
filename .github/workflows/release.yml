@@ -84,26 +84,38 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: cargo publish --verbose
 
-      - name: Create and push git tag
+      - name: Regenerate CHANGELOG.md
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ steps.version.outputs.tag }}
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Commit updated CHANGELOG.md
         if: steps.tag_check.outputs.exists == 'false'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --cached --quiet && echo "CHANGELOG.md unchanged, skipping commit" && exit 0
+          git commit -m "chore(release): update CHANGELOG.md for ${{ steps.version.outputs.tag }} [skip ci]"
+          git push origin main
+
+      - name: Create and push git tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
           git tag -a "${{ steps.version.outputs.tag }}" \
             -m "Release ${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
 
-      - name: Generate release notes from conventional commits
+      - name: Generate release notes
         if: steps.tag_check.outputs.exists == 'false'
-        id: changelog
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: github-keepachangelog
-          args: --verbose --unreleased --tag ${{ steps.version.outputs.tag }} --strip header
-        env:
-          OUTPUT: RELEASE_NOTES.md
-          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          git cliff --current --strip all > RELEASE_NOTES.md
 
       - name: Create GitHub Release
         if: steps.tag_check.outputs.exists == 'false'
