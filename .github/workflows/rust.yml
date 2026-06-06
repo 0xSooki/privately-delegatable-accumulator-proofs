@@ -31,5 +31,14 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
-      - name: Test
+      - name: Test (default features)
         run: cargo test --verbose
+
+      - name: Test (with serde)
+        run: cargo test --features serde --verbose
+
+      - name: Test serde round-trips
+        run: cargo test --features serde --test serde_roundtrip --verbose
+
+      - name: Test fuzz smoke corpus
+        run: cargo test --test fuzz_smoke --verbose

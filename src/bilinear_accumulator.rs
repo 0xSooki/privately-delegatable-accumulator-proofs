@@ -2,6 +2,7 @@ use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 use ark_poly_commit::kzg10::{Powers, KZG10};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::Rng;
 use rand::thread_rng;
 use std::borrow::Cow;
@@ -12,12 +13,12 @@ use crate::groups::bilinear_group::BilinearG1;
 use crate::nizk;
 use crate::traits::{Accumulator, Group, PrivatelyDelegatableAccumulator};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct MembershipProof<E: Pairing> {
     pub pi: E::G1Affine,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct NonMembershipProof<E: Pairing> {
     pub y: E::ScalarField,
     pub b: E::G1Affine,
@@ -91,8 +92,8 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
     }
 
-    pub fn value_raw(&self) -> E::G1Affine {
-        self.acc
+    pub fn value(&self) -> &E::G1Affine {
+        &self.acc
     }
 
     pub fn add_raw(&mut self, element: &E::ScalarField) -> bool {
@@ -809,7 +810,7 @@ mod tests {
         let _proof = acc
             .mem_proof_create_raw(element)
             .expect("Membership proof creation failed");
-        let acc_t = acc.value_raw();
+        let acc_t = acc.value().clone();
 
         let s = initial_elements.iter().fold(
             DensePolynomial::from_coefficients_vec(vec![ark_bls12_381::Fr::one()]),
@@ -887,7 +888,7 @@ mod tests {
         );
 
         let (blinded_non_mem_proof, r) = acc.blind_non_mem_proof_raw(&proof, non_member);
-        let acc_t = acc.value_raw();
+        let acc_t = acc.value().clone();
 
         let sn_plus_one = ark_bls12_381::Fr::from(67u64);
         acc.add_raw(&sn_plus_one);
