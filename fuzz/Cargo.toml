@@ -1,0 +1,40 @@
+[package]
+name = "private-accumulator-proof-delegation-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.private_accumulator_proof_delegation]
+path = ".."
+features = []
+
+# Cargo automatically enables a nightly-only feature for fuzzing
+[[bin]]
+name = "fuzz_rsa_mem_ver"
+path = "fuzz_targets/fuzz_rsa_mem_ver.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_rsa_non_mem_ver"
+path = "fuzz_targets/fuzz_rsa_non_mem_ver.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_rsa_delegation_roundtrip"
+path = "fuzz_targets/fuzz_rsa_delegation_roundtrip.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_bilinear_mem_ver"
+path = "fuzz_targets/fuzz_bilinear_mem_ver.rs"
+test = false
+doc = false
