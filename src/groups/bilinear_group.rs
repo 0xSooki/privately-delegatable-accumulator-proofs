@@ -65,7 +65,12 @@ impl<E: Pairing> Group for BilinearG1<E> {
     }
 
     fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8> {
-        format!("{:?}", element).into_bytes()
+        use ark_serialize::CanonicalSerialize;
+        let mut buf = Vec::with_capacity(element.compressed_size());
+        element
+            .serialize_compressed(&mut buf)
+            .expect("G1Affine compressed serialization is infallible");
+        buf
     }
 
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
