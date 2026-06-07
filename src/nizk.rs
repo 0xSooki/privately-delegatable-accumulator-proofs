@@ -37,21 +37,27 @@ impl<'a, G: Group> NIZK<'a, G> {
         a: &G::Element,
         b: &G::Element,
     ) -> G::Exponent {
-        let g_bytes = self.group.element_to_bytes(g);
-        let h_bytes = self.group.element_to_bytes(h);
-        let u_bytes = self.group.element_to_bytes(u);
-        let v_bytes = self.group.element_to_bytes(v);
-        let a_bytes = self.group.element_to_bytes(a);
-        let b_bytes = self.group.element_to_bytes(b);
+        const DST: &[u8] = b"PADP-v1/dleq/fs-challenge";
 
-        let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
+        let parts = [
+            self.group.element_to_bytes(g),
+            self.group.element_to_bytes(u),
+            self.group.element_to_bytes(h),
+            self.group.element_to_bytes(v),
+            self.group.element_to_bytes(a),
+            self.group.element_to_bytes(b),
+        ];
 
-        let mut bytes_data = Vec::with_capacity(parts.iter().map(|p| p.len()).sum());
-        for p in parts {
-            bytes_data.extend_from_slice(p);
+        let mut transcript = Vec::with_capacity(
+            DST.len() + parts.iter().map(|p| 8 + p.len()).sum::<usize>(),
+        );
+        transcript.extend_from_slice(DST);
+        for part in &parts {
+            transcript.extend_from_slice(&(part.len() as u64).to_le_bytes());
+            transcript.extend_from_slice(part);
         }
 
-        self.group.hash_to_prime(&bytes_data)
+        self.group.hash_to_prime(&transcript)
     }
 
     pub fn dleq_challenge(
