@@ -9,6 +9,13 @@ Cryptographic accumulators with privately delegatable proof updates in Rust. Sup
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE-APACHE)
 [![IACR ePrint](https://img.shields.io/badge/IACR%20ePrint-2026%2F832-blue)](https://eprint.iacr.org/2026/832)
 
+---
+
+> [!WARNING]
+> This is an academic prototype, it has not received careful code review. Therefore, this implementation is NOT ready for production use.
+
+---
+
 ## Documentation
 
 ## Add `private-accumulator-proof-delegation` to your repository
