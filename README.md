@@ -3,12 +3,20 @@
 Cryptographic accumulators with privately delegatable proof updates in Rust. Supports RSA, class-group, and bilinear constructions.
 
 [![GitHub Actions](https://github.com/GlaszBoti/private-accumulator-proof-delegation/actions/workflows/rust.yml/badge.svg)](https://github.com/GlaszBoti/private-accumulator-proof-delegation/actions)
+[![Crates.io](https://img.shields.io/crates/v/private-accumulator-proof-delegation.svg)](https://crates.io/crates/private-accumulator-proof-delegation)
 [![Documentation](https://docs.rs/private-accumulator-proof-delegation/badge.svg)](https://docs.rs/private-accumulator-proof-delegation)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE-MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE-APACHE)
 [![IACR ePrint](https://img.shields.io/badge/IACR%20ePrint-2026%2F832-blue)](https://eprint.iacr.org/2026/832)
 
-## Documentation
+---
 
-Clone the repository and run `cd privacy-preserving-accumulator-proofs/ && cargo doc --open`
+> [!WARNING]
+> This is an academic prototype, it has not received careful code review. Therefore, this implementation is NOT ready for production use.
+
+---
+
+## Documentation
 
 ## Add `private-accumulator-proof-delegation` to your repository
 

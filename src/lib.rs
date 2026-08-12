@@ -10,6 +10,9 @@
 //! - `class-group` — class-group (`class_group`/`curv-kzen`) backend for the
 //!   RSA-style accumulator. Off by default because `curv` brings a number of
 //!   transitive dependencies.
+//! - `serde` — `serde::Serialize` / `serde::Deserialize` implementations for
+//!   all RSA proof types. Bilinear proof types always implement
+//!   `ark_serialize::CanonicalSerialize` / `CanonicalDeserialize`.
 //!
 //! # Example
 //!
@@ -18,9 +21,9 @@
 //! use private_accumulator_proof_delegation::{rsa_group::RsaGroup, RsaAccumulator};
 //!
 //! let mut acc = RsaAccumulator::<RsaGroup>::setup();
-//! let ep = acc.add(&BigUint::from(7u32));
-//! let proof = acc.mem_proof_create(&ep).unwrap();
-//! assert!(acc.mem_ver(&proof, &ep));
+//! let ep = acc.add_raw(&BigUint::from(7u32));
+//! let proof = acc.mem_proof_create_raw(&ep).unwrap();
+//! assert!(acc.mem_ver_raw(&proof, &ep));
 //! ```
 
 pub mod error;
@@ -28,7 +31,7 @@ pub mod error;
 #[cfg(feature = "rsa")]
 pub mod rsa_accumulator;
 
-#[cfg(feature = "rsa")]
+#[cfg(any(feature = "rsa", feature = "bilinear"))]
 pub mod groups;
 
 #[cfg(feature = "bilinear")]
@@ -49,4 +52,19 @@ pub use rsa_accumulator::RsaAccumulator;
 pub use groups::rsa_group;
 
 #[cfg(feature = "bilinear")]
+pub use groups::bilinear_group;
+
+#[cfg(feature = "bilinear")]
 pub use bilinear_accumulator::BilinearAccumulator;
+
+#[cfg(feature = "rsa")]
+pub use rsa_accumulator::{
+    RsaBlindedMembershipProof, RsaBlindedNonMembershipProof, RsaDleqProof, RsaMembershipProof,
+    RsaNizkAux, RsaNonMembershipProof, RsaUpdatedBlindedMembershipProof,
+    RsaUpdatedBlindedNonMembershipProof,
+};
+
+#[cfg(feature = "bilinear")]
+pub use bilinear_accumulator::{
+    MembershipProof as BilinearMembershipProof, NonMembershipProof as BilinearNonMembershipProof,
+};

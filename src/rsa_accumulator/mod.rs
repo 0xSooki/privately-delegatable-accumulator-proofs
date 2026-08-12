@@ -1,11 +1,162 @@
 use crate::traits::Group;
-use num_bigint::BigUint;
-use rand::thread_rng;
-use rand::RngCore;
+use num_bigint::{BigInt, BigUint};
 use std::collections::HashSet;
 
-pub(super) type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(transparent)
+)]
+pub struct RsaMembershipProof(pub BigUint);
+
+/// A non-membership witness `(a, b)` such that `acc^a · b^x = g`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RsaNonMembershipProof {
+    pub a: BigInt,
+    pub b: BigUint,
+}
+
+/// A blinded membership witness.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(transparent)
+)]
+pub struct RsaBlindedMembershipProof(pub BigUint);
+
+/// A blinded non-membership witness `(value, q)` where `value = element * q`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RsaBlindedNonMembershipProof {
+    pub value: BigUint,
+    pub q: BigUint,
+}
+
+/// A single DLEQ proof `(a, b, z)`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RsaDleqProof {
+    pub q1: BigUint,
+    pub q2: BigUint,
+    pub q3: BigUint,
+    pub a: BigUint,
+    pub r: BigUint,
+}
+
+/// Auxiliary NIZK data accompanying an updated blinded membership proof.
+///
+/// Contains two DLEQ proofs: `pi1` witnesses the accumulator update and
+/// `pi2` witnesses the blinded proof update.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RsaNizkAux {
+    pub pi1: RsaDleqProof,
+    pub pi2: RsaDleqProof,
+}
+
+/// An updated blinded membership witness `(a, b)` together with its NIZK
+/// auxiliary data.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RsaUpdatedBlindedMembershipProof {
+    pub a: BigUint,
+    pub b: BigUint,
+}
+
+/// An updated blinded non-membership witness `(a, b)`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RsaUpdatedBlindedNonMembershipProof {
+    pub a: BigInt,
+    pub b: BigUint,
+}
+
+pub(super) type Aux = ((BigUint, BigUint, BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint, BigUint, BigUint));
 pub(super) type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
+
+impl RsaMembershipProof {
+    pub fn from_raw(v: BigUint) -> Self {
+        Self(v)
+    }
+    pub fn into_raw(self) -> BigUint {
+        self.0
+    }
+}
+
+impl RsaNonMembershipProof {
+    pub fn from_raw(a: BigInt, b: BigUint) -> Self {
+        Self { a, b }
+    }
+    pub fn into_raw(self) -> (BigInt, BigUint) {
+        (self.a, self.b)
+    }
+}
+
+impl RsaBlindedMembershipProof {
+    pub fn from_raw(v: BigUint) -> Self {
+        Self(v)
+    }
+    pub fn into_raw(self) -> BigUint {
+        self.0
+    }
+}
+
+impl RsaBlindedNonMembershipProof {
+    pub fn from_raw(value: BigUint, q: BigUint) -> Self {
+        Self { value, q }
+    }
+    pub fn into_raw(self) -> (BigUint, BigUint) {
+        (self.value, self.q)
+    }
+}
+
+impl RsaDleqProof {
+    pub fn from_raw(t: (BigUint, BigUint, BigUint, BigUint, BigUint)) -> Self {
+        Self {
+            q1: t.0,
+            q2: t.1,
+            q3: t.2,
+            a: t.3,
+            r: t.4,
+        }
+    }
+    pub fn into_raw(self) -> (BigUint, BigUint, BigUint, BigUint, BigUint) {
+        (self.q1, self.q2, self.q3, self.a, self.r)
+    }
+}
+
+impl RsaNizkAux {
+    pub fn from_raw(t: Aux) -> Self {
+        Self {
+            pi1: RsaDleqProof::from_raw(t.0),
+            pi2: RsaDleqProof::from_raw(t.1),
+        }
+    }
+    pub fn into_raw(self) -> Aux {
+        (self.pi1.into_raw(), self.pi2.into_raw())
+    }
+}
+
+impl RsaUpdatedBlindedMembershipProof {
+    pub fn from_raw(a: BigUint, b: BigUint) -> Self {
+        Self { a, b }
+    }
+    pub fn into_raw(self) -> (BigUint, BigUint) {
+        (self.a, self.b)
+    }
+}
+
+impl RsaUpdatedBlindedNonMembershipProof {
+    pub fn from_raw(a: BigInt, b: BigUint) -> Self {
+        Self { a, b }
+    }
+    pub fn into_raw(self) -> (BigInt, BigUint) {
+        (self.a, self.b)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct RsaAccumulator<G: Group> {
@@ -15,20 +166,7 @@ pub struct RsaAccumulator<G: Group> {
 }
 
 impl<G: Group> RsaAccumulator<G> {
-    pub fn new(group: G) -> Self {
-        let acc = group.g();
-        Self {
-            group,
-            acc,
-            set: HashSet::new(),
-        }
-    }
-
-    pub fn value(&self) -> &G::Element {
-        &self.acc
-    }
-
-    pub fn add<T: ToString>(&mut self, element: &T) -> G::Exponent {
+    pub fn add_raw<T: ToString>(&mut self, element: &T) -> G::Exponent {
         let x_str = element.to_string();
         let x_prime = self.group.hash_to_prime(x_str.as_bytes());
 
@@ -39,28 +177,25 @@ impl<G: Group> RsaAccumulator<G> {
         x_prime
     }
 
-    pub fn mem_ver(&self, proof: &G::Element, element: &G::Exponent) -> bool {
+    pub fn mem_ver_raw(&self, proof: &G::Element, element: &G::Exponent) -> bool {
         self.group.exp(proof, element) == self.acc
     }
 
-    pub fn blind_mem_proof(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
-        let blinder = self.sample_blinder();
+    pub fn blind_mem_proof_raw(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
+        let blinder = self.group.random_exponent();
         let mask = self.group.exp(&self.group.g(), &blinder);
         let blinded_proof = self.group.mul(proof, &mask);
         (blinded_proof, blinder)
     }
 
-    pub fn unblind_mem_proof(&self, blinded_proof: &G::Element, st: &G::Exponent) -> G::Element {
+    pub fn unblind_mem_proof_raw(
+        &self,
+        blinded_proof: &G::Element,
+        st: &G::Exponent,
+    ) -> G::Element {
         let st_mask = self.group.exp(&self.group.g(), st);
         let st_inv = self.group.inv(&st_mask);
         self.group.mul(blinded_proof, &st_inv)
-    }
-
-    fn sample_blinder(&self) -> G::Exponent {
-        let mut rng = thread_rng();
-        let mut seed = [0u8; 32];
-        rng.fill_bytes(&mut seed);
-        self.group.hash_to_prime(&seed)
     }
 }
 

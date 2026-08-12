@@ -86,11 +86,11 @@ fn prepare_bilinear_mem_context(batch_size: usize) -> BilinearMemContext {
     let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut rng, (batch_size * 4) + 64);
 
     let member = Fr::from(MEMBER);
-    acc.add(&member);
+    acc.add_raw(&member);
 
     let base_roots = [2u64, 3, 5, 7, 11].map(Fr::from);
     for root in &base_roots {
-        acc.add(root);
+        acc.add_raw(root);
     }
 
     let mut current_roots = vec![member];
@@ -99,22 +99,22 @@ fn prepare_bilinear_mem_context(batch_size: usize) -> BilinearMemContext {
     let (q, _) = syn_div_by_x_minus_c(&s_poly, &member);
 
     let (crs_prime, _r) = acc
-        .blind_mem_proof(&mut rng, &q, batch_size)
+        .blind_mem_proof_raw(&mut rng, &q, batch_size)
         .expect("blind membership proof creation failed");
     let pi_blinded = crs_prime
         .first()
         .copied()
         .expect("blinded CRS must include base term");
-    let acc_t = acc.value();
+    let acc_t = *acc.value();
 
     let update_elements: Vec<Fr> = (10_000u64..).take(batch_size).map(Fr::from).collect();
     let q_star = build_poly_from_roots(&update_elements);
     let powers_acc_t_vec = acc.shift_com(&s_poly, q_star.coeffs().len());
 
     for root in &update_elements {
-        acc.add(root);
+        acc.add_raw(root);
     }
-    let acc_t_prime = acc.value();
+    let acc_t_prime = *acc.value();
 
     let required_len = q_star.coeffs().len();
     let powers_for_pi = Powers::<Bls12_381> {
@@ -165,19 +165,19 @@ fn prepare_bilinear_non_mem_context() -> BilinearNonMemContext {
     let mut acc = BilinearAccumulator::<Bls12_381>::setup(&mut rng, 64);
 
     for root in [2u64, 3, 5, 7, 11].map(Fr::from) {
-        acc.add(&root);
+        acc.add_raw(&root);
     }
 
     let non_member = Fr::from(NON_MEMBER);
     let non_mem_proof = acc
-        .non_mem_proof_create(non_member)
+        .non_mem_proof_create_raw(non_member)
         .expect("non-membership proof creation failed");
-    let (blinded_non_mem_proof, _r) = acc.blind_non_mem_proof(&non_mem_proof, non_member);
+    let (blinded_non_mem_proof, _r) = acc.blind_non_mem_proof_raw(&non_mem_proof, non_member);
 
-    let acc_t = acc.value();
+    let acc_t = *acc.value();
     let sn_plus_one = Fr::from(UPDATE);
-    acc.add(&sn_plus_one);
-    let acc_t_prime = acc.value();
+    acc.add_raw(&sn_plus_one);
+    let acc_t_prime = *acc.value();
 
     let q_prime = (blinded_non_mem_proof.0 .1.into_group()
         - blinded_non_mem_proof.0 .0.into_group() * sn_plus_one)
@@ -221,18 +221,18 @@ struct RsaMemContext {
 fn prepare_rsa_mem_context() -> RsaMemContext {
     let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
 
-    let ep = acc.add(&MEMBER);
+    let ep = acc.add_raw(&MEMBER);
     for v in [2u64, 3, 5, 7, 11] {
-        acc.add(&v);
+        acc.add_raw(&v);
     }
 
-    let proof = acc.mem_proof_create(&ep).unwrap();
-    let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
+    let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    let (blinded_proof, _st) = acc.blind_mem_proof_raw(&proof);
     let acc_t = acc.acc.clone();
 
     let elements_in = [65537u64, 100003, 104729, 1299709, 15485863]
         .iter()
-        .map(|v| acc.add(v))
+        .map(|v| acc.add_raw(v))
         .collect::<Vec<_>>();
 
     let delta = elements_in
@@ -268,14 +268,14 @@ fn prepare_rsa_non_mem_context() -> RsaNonMemContext {
     let mut acc = RsaAccumulator::<RsaGroup>::setup_trapdoorless();
 
     for v in [2u64, 3, 5, 7, 11] {
-        acc.add(&v);
+        acc.add_raw(&v);
     }
 
     let non_member = BigUint::from(NON_MEMBER);
-    let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+    let blinded_non_mem_proof = acc.blind_non_mem_proof_raw(&non_member);
 
     for v in [13u64, 17, 19, 23, 29] {
-        acc.add(&v);
+        acc.add_raw(&v);
     }
 
     let delta = NumBigInt::from(acc.calculate_product_unreduced());
@@ -308,18 +308,18 @@ struct ClassMemContext {
 fn prepare_class_mem_context() -> ClassMemContext {
     let mut acc = RsaAccumulator::<ClassGroup>::setup_trapdoorless();
 
-    let ep = acc.add(&MEMBER);
+    let ep = acc.add_raw(&MEMBER);
     for v in [2u64, 3, 5, 7, 11] {
-        acc.add(&v);
+        acc.add_raw(&v);
     }
 
-    let proof = acc.mem_proof_create(&ep).unwrap();
-    let (blinded_proof, _st) = acc.blind_mem_proof(&proof);
+    let proof = acc.mem_proof_create_raw(&ep).unwrap();
+    let (blinded_proof, _st) = acc.blind_mem_proof_raw(&proof);
     let acc_t = acc.acc.clone();
 
     let elements_in = [65537u64, 100003, 104729, 1299709, 15485863]
         .iter()
-        .map(|v| acc.add(v))
+        .map(|v| acc.add_raw(v))
         .collect::<Vec<_>>();
 
     let delta = elements_in.iter().fold(ClassGroup::exp_id(), |prod, e| {
@@ -357,14 +357,14 @@ fn prepare_class_non_mem_context() -> ClassNonMemContext {
     let mut acc = RsaAccumulator::<ClassGroup>::setup_trapdoorless();
 
     for v in [2u64, 3, 5, 7, 11] {
-        acc.add(&v);
+        acc.add_raw(&v);
     }
 
     let non_member = acc.group.hash_to_prime(&NON_MEMBER.to_be_bytes());
-    let blinded_non_mem_proof = acc.blind_non_mem_proof(&non_member);
+    let blinded_non_mem_proof = acc.blind_non_mem_proof_raw(&non_member);
 
     for v in [13u64, 17, 19, 23, 29] {
-        acc.add(&v);
+        acc.add_raw(&v);
     }
 
     let delta = acc.calculate_product_unreduced();
@@ -420,7 +420,7 @@ fn benchmark_mem_update_breakdown(c: &mut Criterion) {
                     )
                 },
                 |(acc, crs_prime, q_star, powers_acc_t)| {
-                    let _ = black_box(acc.blind_mem_proof_upd(
+                    let _ = black_box(acc.blind_mem_proof_upd_raw(
                         &ctx.pi_blinded,
                         &ctx.acc_t,
                         crs_prime,
@@ -498,8 +498,11 @@ fn benchmark_mem_update_breakdown(c: &mut Criterion) {
             || (ctx.acc_after_update.clone(), ctx.delta.clone()),
             |(acc, delta)| {
                 let delta_int = NumBigInt::from(delta);
-                let _ =
-                    black_box(acc.blind_mem_proof_upd(&ctx.acc_t, &ctx.blinded_proof, &delta_int));
+                let _ = black_box(acc.blind_mem_proof_upd_raw(
+                    &ctx.acc_t,
+                    &ctx.blinded_proof,
+                    &delta_int,
+                ));
             },
             BatchSize::SmallInput,
         );
@@ -559,8 +562,11 @@ fn benchmark_mem_update_breakdown(c: &mut Criterion) {
             b.iter_batched(
                 || (ctx.acc_after_update.clone(), ctx.delta.0.clone()),
                 |(acc, delta)| {
-                    let _ =
-                        black_box(acc.blind_mem_proof_upd(&ctx.acc_t, &ctx.blinded_proof, &delta));
+                    let _ = black_box(acc.blind_mem_proof_upd_raw(
+                        &ctx.acc_t,
+                        &ctx.blinded_proof,
+                        &delta,
+                    ));
                 },
                 BatchSize::SmallInput,
             );
@@ -640,7 +646,7 @@ fn benchmark_non_mem_update_breakdown(c: &mut Criterion) {
 
     bilinear_group.bench_function("full_update", |b| {
         b.iter(|| {
-            let _ = black_box(ctx.acc_after_update.blind_non_mem_proof_upd(
+            let _ = black_box(ctx.acc_after_update.blind_non_mem_proof_upd_raw(
                 &ctx.blinded_non_mem_proof,
                 &ctx.acc_t,
                 &ctx.sn_plus_one,
@@ -686,7 +692,7 @@ fn benchmark_non_mem_update_breakdown(c: &mut Criterion) {
         b.iter(|| {
             let _ = black_box(
                 ctx.acc_after_update
-                    .blind_non_mem_proof_upd(&ctx.blinded_non_mem_proof.0, &ctx.delta),
+                    .blind_non_mem_proof_upd_raw(&ctx.blinded_non_mem_proof.0, &ctx.delta),
             );
         });
     });
@@ -714,7 +720,7 @@ fn benchmark_non_mem_update_breakdown(c: &mut Criterion) {
             b.iter(|| {
                 let _ = black_box(
                     ctx.acc_after_update
-                        .blind_non_mem_proof_upd(&ctx.blinded_non_mem_proof.0, &ctx.delta),
+                        .blind_non_mem_proof_upd_raw(&ctx.blinded_non_mem_proof.0, &ctx.delta),
                 );
             });
         });

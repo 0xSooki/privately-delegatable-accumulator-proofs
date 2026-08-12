@@ -2,13 +2,11 @@ use crate::traits::Group;
 #[cfg(feature = "bilinear")]
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 #[cfg(feature = "bilinear")]
-use ark_ff::{BigInteger, One, PrimeField, Zero};
+use ark_ff::{One, PrimeField, Zero};
 #[cfg(feature = "bilinear")]
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 #[cfg(feature = "bilinear")]
 use ark_poly_commit::kzg10::{Powers, KZG10};
-use rand::thread_rng;
-use rand::RngCore;
 #[cfg(feature = "bilinear")]
 use sha2::{Digest, Sha256};
 
@@ -35,23 +33,27 @@ impl<'a, G: Group> NIZK<'a, G> {
         h: &G::Element,
         v: &G::Element,
         a: &G::Element,
-        b: &G::Element,
     ) -> G::Exponent {
-        let g_bytes = self.group.element_to_bytes(g);
-        let h_bytes = self.group.element_to_bytes(h);
-        let u_bytes = self.group.element_to_bytes(u);
-        let v_bytes = self.group.element_to_bytes(v);
-        let a_bytes = self.group.element_to_bytes(a);
-        let b_bytes = self.group.element_to_bytes(b);
+        const DST: &[u8] = b"PADP-v1/dleq/fs-challenge";
 
-        let parts = [&g_bytes, &h_bytes, &u_bytes, &v_bytes, &a_bytes, &b_bytes];
+        let parts = [
+            self.group.element_to_bytes(g),
+            self.group.element_to_bytes(u),
+            self.group.element_to_bytes(h),
+            self.group.element_to_bytes(v),
+            self.group.element_to_bytes(a),
+        ];
 
-        let mut bytes_data = Vec::with_capacity(parts.iter().map(|p| p.len()).sum());
-        for p in parts {
-            bytes_data.extend_from_slice(p);
+        let mut transcript = Vec::with_capacity(
+            DST.len() + parts.iter().map(|p| 8 + p.len()).sum::<usize>(),
+        );
+        transcript.extend_from_slice(DST);
+        for part in &parts {
+            transcript.extend_from_slice(&(part.len() as u64).to_le_bytes());
+            transcript.extend_from_slice(part);
         }
 
-        self.group.hash_to_prime(&bytes_data)
+        self.group.hash_to_prime(&transcript)
     }
 
     pub fn dleq_challenge(
@@ -61,9 +63,8 @@ impl<'a, G: Group> NIZK<'a, G> {
         h: &G::Element,
         v: &G::Element,
         a: &G::Element,
-        b: &G::Element,
     ) -> G::Exponent {
-        self.challenge(g, u, h, v, a, b)
+        self.challenge(g, u, h, v, a)
     }
 
     pub fn prove_dleq(
@@ -73,18 +74,17 @@ impl<'a, G: Group> NIZK<'a, G> {
         h: &G::Element,
         v: &G::Element,
         w: &G::Exponent,
-    ) -> Proof<G> {
-        let mut rng = thread_rng();
-        let mut seed = [0u8; 32];
-        rng.fill_bytes(&mut seed);
+    ) -> (G::Element, G::Element, G::Element, G::Element, G::Exponent) {
+        let a = self.group.exp(&self.group.g(), w);
 
-        let r = self.group.hash_to_prime(&seed);
-        let a = self.group.exp(g, &r);
-        let b = self.group.exp(h, &r);
+        let e = self.challenge(g, u, h, v, &a);
+        let (q, r) = G::exp_div_rem(w, &e);
 
-        let e = self.challenge(g, u, h, v, &a, &b);
-        let z = G::exp_add(&r, &G::exp_mul(&e, w));
-        (a, b, z)
+        let Q1 = self.group.exp(g, &q);
+        let Q2 = self.group.exp(h, &q);
+        let Q3 = self.group.exp(&self.group.g(), &q);
+
+        (Q1,Q2,Q3, a, r)
     }
 
     pub fn verify_dleq(
@@ -93,20 +93,21 @@ impl<'a, G: Group> NIZK<'a, G> {
         u: &G::Element,
         h: &G::Element,
         v: &G::Element,
-        proof: &Proof<G>,
+        proof: &(G::Element, G::Element, G::Element, G::Element, G::Exponent),
     ) -> bool {
-        let a = &proof.0;
-        let b = &proof.1;
-        let z = &proof.2;
+        let q1 = &proof.0;
+        let q2 = &proof.1;
+        let q3 = &proof.2;
+        let a = &proof.3;
+        let r = &proof.4;
 
-        let e = self.challenge(g, u, h, v, a, b);
-        let lhs_1 = self.group.exp(g, z);
-        let lhs_2 = self.group.exp(h, z);
+        let e = self.challenge(g, u, h, v, a);
 
-        let rhs_1 = self.group.mul(a, &self.group.exp(u, &e));
-        let rhs_2 = self.group.mul(b, &self.group.exp(v, &e));
+        let lhs_1 = self.group.mul( &self.group.exp(g, r),&self.group.exp(q1, &e));
+        let lhs_2 = self.group.mul( &self.group.exp(h, r),&self.group.exp(q2, &e));
+        let lhs_3 = self.group.mul( &self.group.exp(&self.group.g(), r),&self.group.exp(q3, &e));
 
-        lhs_1 == rhs_1 && lhs_2 == rhs_2
+        lhs_1 == *u && lhs_2 == *v && lhs_3 == *a
     }
 }
 
@@ -129,6 +130,8 @@ pub struct BilinearNIZK;
 
 #[cfg(feature = "bilinear")]
 impl BilinearNIZK {
+    const FS_DST: &'static [u8] = b"PADP-v1/poe-eq-sigma-g1/fs-challenge";
+
     fn fs<E: Pairing>(
         g: &E::G1Affine,
         u: &E::G1Affine,
@@ -139,18 +142,23 @@ impl BilinearNIZK {
     where
         E::ScalarField: PrimeField,
     {
-        let mut hasher = Sha256::new();
-        hasher.update(b"poe_eq_and_sigma_g1");
-        hasher.update(format!("{:?}", g).as_bytes());
-        hasher.update(format!("{:?}", u).as_bytes());
-        hasher.update(format!("{:?}", h).as_bytes());
-        hasher.update(format!("{:?}", v).as_bytes());
+        use ark_serialize::CanonicalSerialize;
 
-        for coeff in poly.coeffs() {
-            let coeff_bytes = coeff.into_bigint().to_bytes_le();
-            hasher.update((coeff_bytes.len() as u64).to_le_bytes());
-            hasher.update(&coeff_bytes);
+        fn absorb<T: CanonicalSerialize>(hasher: &mut Sha256, item: &T) {
+            let mut buf = Vec::with_capacity(item.compressed_size());
+            item.serialize_compressed(&mut buf)
+                .expect("infallible: serializing into Vec");
+            hasher.update((buf.len() as u64).to_le_bytes());
+            hasher.update(&buf);
         }
+
+        let mut hasher = Sha256::new();
+        hasher.update(Self::FS_DST);
+        absorb(&mut hasher, g);
+        absorb(&mut hasher, u);
+        absorb(&mut hasher, h);
+        absorb(&mut hasher, v);
+        absorb(&mut hasher, poly);
 
         let digest = hasher.finalize();
         let mut alpha = E::ScalarField::from_le_bytes_mod_order(&digest);
@@ -335,7 +343,7 @@ mod tests {
 
         let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
 
-        let invalid_proof = (proof.0, proof.1, BigUint::from(0u32));
+        let invalid_proof = (proof.0, proof.1, proof.2, proof.3, BigUint::from(43u32));
 
         assert!(!nizk.verify_dleq(&g, &u, &h, &v, &invalid_proof));
     }

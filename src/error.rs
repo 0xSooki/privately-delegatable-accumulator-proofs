@@ -4,11 +4,13 @@ use std::fmt;
 
 /// Errors that can be returned by accumulator operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AccumulatorError {
     /// A membership proof was requested for an element that is not in the set.
     ElementNotInSet,
 
     /// An element that is not coprime with the accumulator set product was
+    /// used to construct a non-membership proof.
     NotCoprime,
 
     /// A proof update was requested with a negative delta.
