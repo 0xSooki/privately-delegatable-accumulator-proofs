@@ -140,35 +140,43 @@ mod rsa_serde {
     #[test]
     fn dleq_proof_json_roundtrip() {
         let proof = RsaDleqProof {
-            a: BigUint::from(1234u32),
-            b: BigUint::from(5678u32),
-            z: BigUint::from(9999u32),
+            q1: BigUint::from(1234u32),
+            q2: BigUint::from(5678u32),
+            q3: BigUint::from(9999u32),
+            a: BigUint::from(1111u32),
+            r: BigUint::from(2222u32),
         };
         let json = serde_json::to_string(&proof).expect("serialize");
         let proof2: RsaDleqProof = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(proof2.q1, proof.q1);
+        assert_eq!(proof2.q2, proof.q2);
+        assert_eq!(proof2.q3, proof.q3);
         assert_eq!(proof2.a, proof.a);
-        assert_eq!(proof2.b, proof.b);
-        assert_eq!(proof2.z, proof.z);
+        assert_eq!(proof2.r, proof.r);
     }
 
     #[test]
     fn nizk_aux_json_roundtrip() {
         let aux = RsaNizkAux {
             pi1: RsaDleqProof {
-                a: BigUint::from(1u32),
-                b: BigUint::from(2u32),
-                z: BigUint::from(3u32),
+                q1: BigUint::from(1u32),
+                q2: BigUint::from(2u32),
+                q3: BigUint::from(3u32),
+                a: BigUint::from(4u32),
+                r: BigUint::from(5u32),
             },
             pi2: RsaDleqProof {
-                a: BigUint::from(4u32),
-                b: BigUint::from(5u32),
-                z: BigUint::from(6u32),
+                q1: BigUint::from(6u32),
+                q2: BigUint::from(7u32),
+                q3: BigUint::from(8u32),
+                a: BigUint::from(9u32),
+                r: BigUint::from(10u32),
             },
         };
         let json = serde_json::to_string(&aux).expect("serialize");
         let aux2: RsaNizkAux = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(aux2.pi1.a, aux.pi1.a);
-        assert_eq!(aux2.pi2.z, aux.pi2.z);
+        assert_eq!(aux2.pi1.q1, aux.pi1.q1);
+        assert_eq!(aux2.pi2.r, aux.pi2.r);
     }
 
     #[test]

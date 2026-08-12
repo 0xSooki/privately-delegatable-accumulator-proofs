@@ -5,8 +5,7 @@ use curv::arithmetic::traits::*;
 use curv::cryptographic_primitives::hashing::HmacExt;
 use curv::BigInt;
 use hmac::Hmac;
-use sha2::Sha512;
-use sha256::digest;
+use sha2::{Digest, Sha256, Sha512};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Shl;
@@ -137,13 +136,26 @@ impl ClassGroup {
     }
 
     pub fn hash_bytes_to_prime(data: &[u8]) -> BigInt {
-        let hash_hex = digest(data);
-        let mut candidate = BigInt::from_str_radix(&hash_hex, 16)
-            .expect("sha256 digest must be parseable as a hex integer");
+        use crate::groups::rsa_group::PRIME_BITS;
 
-        if candidate.modulus(&BigInt::from(2)) == BigInt::zero() {
-            candidate += BigInt::one();
+        let target_bytes = ((PRIME_BITS + 7) / 8) as usize;
+        let blocks = (target_bytes + 31) / 32;
+        let mut raw = Vec::with_capacity(blocks * 32);
+        for ctr in 0u64..blocks as u64 {
+            let mut h = Sha256::new();
+            h.update(b"PADP-v1/hash-to-prime:");
+            h.update(data);
+            h.update(b":");
+            h.update(ctr.to_le_bytes());
+            raw.extend_from_slice(&h.finalize());
         }
+        raw.truncate(target_bytes);
+        raw[0] |= 0x80;
+        *raw.last_mut().unwrap() |= 0x01;
+
+        let hex: String = raw.iter().map(|b| format!("{:02x}", b)).collect();
+        let mut candidate = BigInt::from_str_radix(&hex, 16)
+            .expect("hex from SHA-256 bytes is always a valid integer");
 
         while !primitives::is_prime(&candidate) {
             candidate += BigInt::from(2);
@@ -241,11 +253,22 @@ impl Group for ClassGroup {
         ClassGroupExponent(&a.0 + &b.0)
     }
 
+    fn exp_div_rem(a: &Self::Exponent, b: &Self::Exponent) -> (Self::Exponent, Self::Exponent) {
+        let (q, r) = a.0.div_rem(&b.0);
+        (ClassGroupExponent(q), ClassGroupExponent(r))
+    }
+
     fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8> {
         element.0.to_bytes()
     }
 
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
         ClassGroupExponent(Self::hash_bytes_to_prime(data))
+    }
+
+    fn random_exponent(&self) -> Self::Exponent {
+        let bits = self.discriminant.bit_length()
+            + crate::groups::rsa_group::STATISTICAL_SECURITY_BITS as usize;
+        ClassGroupExponent(BigInt::sample(bits))
     }
 }

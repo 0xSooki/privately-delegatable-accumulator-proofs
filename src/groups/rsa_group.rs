@@ -1,16 +1,18 @@
 use crate::traits::Group;
-use glass_pumpkin::safe_prime;
-use num_bigint::{BigInt, BigUint, RandBigInt, Sign};
-use num_integer::Integer;
+use glass_pumpkin::{prime, safe_prime};
+use num_bigint::{BigInt, BigUint, RandBigInt};
 use num_traits::{One, Zero};
-use rust_miller_rabin::miller_rabin::miller_rabin;
-use sha256::digest;
+use sha2::{Digest, Sha256};
 
 #[cfg(test)]
 pub const MODULUS_SIZE: u64 = 128;
 
 #[cfg(not(test))]
 pub const MODULUS_SIZE: u64 = 1536;
+
+pub const PRIME_BITS: u32 = 256;
+
+pub const STATISTICAL_SECURITY_BITS: u64 = 256;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrapdoorMode {
@@ -55,8 +57,8 @@ impl Group for RsaGroup {
         let n = &p * &q;
         let order = (&p - BigUint::one()) * (&q - BigUint::one());
 
-        // use quadratic residue for generator
-        let g = rng.gen_biguint_range(&BigUint::one(), &n);
+        let h = rng.gen_biguint_range(&BigUint::one(), &n);
+        let g = (&h * &h) % &n;
 
         RsaGroup {
             n,
@@ -97,6 +99,10 @@ impl Group for RsaGroup {
         a + b
     }
 
+    fn exp_div_rem(a: &Self::Exponent, b: &Self::Exponent) -> (Self::Exponent, Self::Exponent) {
+        (a / b, a % b)
+    }
+
     fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8> {
         element.to_bytes_be()
     }
@@ -108,25 +114,40 @@ impl Group for RsaGroup {
             181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
         ];
 
-        let hash_hex = digest(data);
-        let mut candidate = BigUint::parse_bytes(hash_hex.as_bytes(), 16).unwrap();
-
-        if candidate.is_even() {
-            candidate += 1u32;
+        let target_bytes = ((PRIME_BITS + 7) / 8) as usize;
+        let blocks = (target_bytes + 31) / 32; // SHA-256 block = 32 bytes
+        let mut raw = Vec::with_capacity(blocks * 32);
+        for ctr in 0u64..blocks as u64 {
+            let mut h = Sha256::new();
+            h.update(b"PADP-v1/hash-to-prime:");
+            h.update(data);
+            h.update(b":");
+            h.update(ctr.to_le_bytes());
+            raw.extend_from_slice(&h.finalize());
         }
+        raw.truncate(target_bytes);
+
+        raw[0] |= 0x80;
+        *raw.last_mut().unwrap() |= 0x01;
+
+        let mut candidate = BigUint::from_bytes_be(&raw);
 
         loop {
             if !SMALL_PRIMES
                 .iter()
                 .any(|&p| (&candidate % p).is_zero() && candidate != BigUint::from(p))
             {
-                let candidate_signed = BigInt::from_biguint(Sign::Plus, candidate.clone());
-                if miller_rabin(&candidate_signed) {
+                if prime::check(&candidate) {
                     return candidate;
                 }
             }
             candidate += 2u32;
         }
+    }
+
+    fn random_exponent(&self) -> Self::Exponent {
+        let bits = self.n.bits() + STATISTICAL_SECURITY_BITS;
+        rand::thread_rng().gen_biguint(bits)
     }
 }
 
@@ -141,7 +162,8 @@ impl RsaGroup {
         let q = BigUint::from(q_uint);
 
         let n = &p * &q;
-        let g = rng.gen_biguint_range(&BigUint::one(), &n);
+        let h = rng.gen_biguint_range(&BigUint::one(), &n);
+        let g = (&h * &h) % &n;
 
         RsaGroup { n, g, order: None }
     }

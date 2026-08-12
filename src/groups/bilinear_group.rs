@@ -64,6 +64,12 @@ impl<E: Pairing> Group for BilinearG1<E> {
         *a + *b
     }
 
+    fn exp_div_rem(a: &Self::Exponent, b: &Self::Exponent) -> (Self::Exponent, Self::Exponent) {
+        use ark_ff::Zero;
+        assert!(!b.is_zero(), "division by zero exponent");
+        (*a / *b, E::ScalarField::zero())
+    }
+
     fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8> {
         use ark_serialize::CanonicalSerialize;
         let mut buf = Vec::with_capacity(element.compressed_size());
@@ -76,5 +82,10 @@ impl<E: Pairing> Group for BilinearG1<E> {
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent {
         let digest = Sha256::digest(data);
         E::ScalarField::from_le_bytes_mod_order(&digest)
+    }
+
+    fn random_exponent(&self) -> Self::Exponent {
+        use ark_ff::UniformRand;
+        E::ScalarField::rand(&mut rand::thread_rng())
     }
 }

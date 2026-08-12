@@ -36,7 +36,8 @@ impl RsaAccumulator<RsaGroup> {
         let n = &p * &q;
         let order = (&p - BigUint::one()) * (&q - BigUint::one());
 
-        let g = rng.gen_biguint_range(&BigUint::one(), &n);
+        let h = rng.gen_biguint_range(&BigUint::one(), &n);
+        let g = (&h * &h) % &n;
         let group = RsaGroup::new(n, g, Some(order));
 
         Self::new(group)
@@ -91,7 +92,8 @@ impl RsaAccumulator<RsaGroup> {
         let q = BigUint::from(q_uint);
         let n = &p * &q;
 
-        let g = rng.gen_biguint_range(&BigUint::one(), &n);
+        let h = rng.gen_biguint_range(&BigUint::one(), &n);
+        let g = (&h * &h) % &n;
         let group = RsaGroup::new(n, g, None);
 
         Self::new(group)

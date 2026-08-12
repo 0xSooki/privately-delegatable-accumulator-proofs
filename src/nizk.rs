@@ -7,8 +7,6 @@ use ark_ff::{One, PrimeField, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
 #[cfg(feature = "bilinear")]
 use ark_poly_commit::kzg10::{Powers, KZG10};
-use rand::thread_rng;
-use rand::RngCore;
 #[cfg(feature = "bilinear")]
 use sha2::{Digest, Sha256};
 
@@ -35,7 +33,6 @@ impl<'a, G: Group> NIZK<'a, G> {
         h: &G::Element,
         v: &G::Element,
         a: &G::Element,
-        b: &G::Element,
     ) -> G::Exponent {
         const DST: &[u8] = b"PADP-v1/dleq/fs-challenge";
 
@@ -45,7 +42,6 @@ impl<'a, G: Group> NIZK<'a, G> {
             self.group.element_to_bytes(h),
             self.group.element_to_bytes(v),
             self.group.element_to_bytes(a),
-            self.group.element_to_bytes(b),
         ];
 
         let mut transcript = Vec::with_capacity(
@@ -67,9 +63,8 @@ impl<'a, G: Group> NIZK<'a, G> {
         h: &G::Element,
         v: &G::Element,
         a: &G::Element,
-        b: &G::Element,
     ) -> G::Exponent {
-        self.challenge(g, u, h, v, a, b)
+        self.challenge(g, u, h, v, a)
     }
 
     pub fn prove_dleq(
@@ -79,17 +74,17 @@ impl<'a, G: Group> NIZK<'a, G> {
         h: &G::Element,
         v: &G::Element,
         w: &G::Exponent,
-    ) -> Proof<G> {
-        let mut seed = zeroize::Zeroizing::new([0u8; 32]);
-        thread_rng().fill_bytes(seed.as_mut());
+    ) -> (G::Element, G::Element, G::Element, G::Element, G::Exponent) {
+        let a = self.group.exp(&self.group.g(), w);
 
-        let r = self.group.hash_to_prime(seed.as_ref());
-        let a = self.group.exp(g, &r);
-        let b = self.group.exp(h, &r);
+        let e = self.challenge(g, u, h, v, &a);
+        let (q, r) = G::exp_div_rem(w, &e);
 
-        let e = self.challenge(g, u, h, v, &a, &b);
-        let z = G::exp_add(&r, &G::exp_mul(&e, w));
-        (a, b, z)
+        let Q1 = self.group.exp(g, &q);
+        let Q2 = self.group.exp(h, &q);
+        let Q3 = self.group.exp(&self.group.g(), &q);
+
+        (Q1,Q2,Q3, a, r)
     }
 
     pub fn verify_dleq(
@@ -98,20 +93,21 @@ impl<'a, G: Group> NIZK<'a, G> {
         u: &G::Element,
         h: &G::Element,
         v: &G::Element,
-        proof: &Proof<G>,
+        proof: &(G::Element, G::Element, G::Element, G::Element, G::Exponent),
     ) -> bool {
-        let a = &proof.0;
-        let b = &proof.1;
-        let z = &proof.2;
+        let q1 = &proof.0;
+        let q2 = &proof.1;
+        let q3 = &proof.2;
+        let a = &proof.3;
+        let r = &proof.4;
 
-        let e = self.challenge(g, u, h, v, a, b);
-        let lhs_1 = self.group.exp(g, z);
-        let lhs_2 = self.group.exp(h, z);
+        let e = self.challenge(g, u, h, v, a);
 
-        let rhs_1 = self.group.mul(a, &self.group.exp(u, &e));
-        let rhs_2 = self.group.mul(b, &self.group.exp(v, &e));
+        let lhs_1 = self.group.mul( &self.group.exp(g, r),&self.group.exp(q1, &e));
+        let lhs_2 = self.group.mul( &self.group.exp(h, r),&self.group.exp(q2, &e));
+        let lhs_3 = self.group.mul( &self.group.exp(&self.group.g(), r),&self.group.exp(q3, &e));
 
-        lhs_1 == rhs_1 && lhs_2 == rhs_2
+        lhs_1 == *u && lhs_2 == *v && lhs_3 == *a
     }
 }
 
@@ -347,7 +343,7 @@ mod tests {
 
         let proof = nizk.prove_dleq(&g, &u, &h, &v, &w);
 
-        let invalid_proof = (proof.0, proof.1, BigUint::from(0u32));
+        let invalid_proof = (proof.0, proof.1, proof.2, proof.3, BigUint::from(43u32));
 
         assert!(!nizk.verify_dleq(&g, &u, &h, &v, &invalid_proof));
     }

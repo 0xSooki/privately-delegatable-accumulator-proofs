@@ -37,11 +37,17 @@ pub trait Group: Clone + Debug {
     /// Add two exponents
     fn exp_add(a: &Self::Exponent, b: &Self::Exponent) -> Self::Exponent;
 
+    /// Divide two exponents with remainder: returns `(q, r)` such that
+    /// `a == exp_add(&exp_mul(&q, b), &r)`.
+    fn exp_div_rem(a: &Self::Exponent, b: &Self::Exponent) -> (Self::Exponent, Self::Exponent);
+
     /// Serialize a group element to bytes
     fn element_to_bytes(&self, element: &Self::Element) -> Vec<u8>;
 
     /// Hash arbitrary data to a prime exponent
     fn hash_to_prime(&self, data: &[u8]) -> Self::Exponent;
+
+    fn random_exponent(&self) -> Self::Exponent;
 }
 
 /// Trait for accumulators with (non-)membership proofs.

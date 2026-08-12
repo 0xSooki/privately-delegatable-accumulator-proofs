@@ -1,9 +1,6 @@
 use crate::traits::Group;
 use num_bigint::{BigInt, BigUint};
-use rand::thread_rng;
-use rand::RngCore;
 use std::collections::HashSet;
-use zeroize::Zeroizing;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
@@ -42,9 +39,11 @@ pub struct RsaBlindedNonMembershipProof {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RsaDleqProof {
+    pub q1: BigUint,
+    pub q2: BigUint,
+    pub q3: BigUint,
     pub a: BigUint,
-    pub b: BigUint,
-    pub z: BigUint,
+    pub r: BigUint,
 }
 
 /// Auxiliary NIZK data accompanying an updated blinded membership proof.
@@ -75,7 +74,7 @@ pub struct RsaUpdatedBlindedNonMembershipProof {
     pub b: BigUint,
 }
 
-pub(super) type Aux = ((BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint));
+pub(super) type Aux = ((BigUint, BigUint, BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint, BigUint, BigUint));
 pub(super) type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
 
 impl RsaMembershipProof {
@@ -115,15 +114,17 @@ impl RsaBlindedNonMembershipProof {
 }
 
 impl RsaDleqProof {
-    pub fn from_raw(t: (BigUint, BigUint, BigUint)) -> Self {
+    pub fn from_raw(t: (BigUint, BigUint, BigUint, BigUint, BigUint)) -> Self {
         Self {
-            a: t.0,
-            b: t.1,
-            z: t.2,
+            q1: t.0,
+            q2: t.1,
+            q3: t.2,
+            a: t.3,
+            r: t.4,
         }
     }
-    pub fn into_raw(self) -> (BigUint, BigUint, BigUint) {
-        (self.a, self.b, self.z)
+    pub fn into_raw(self) -> (BigUint, BigUint, BigUint, BigUint, BigUint) {
+        (self.q1, self.q2, self.q3, self.a, self.r)
     }
 }
 
@@ -181,7 +182,7 @@ impl<G: Group> RsaAccumulator<G> {
     }
 
     pub fn blind_mem_proof_raw(&self, proof: &G::Element) -> (G::Element, G::Exponent) {
-        let blinder = self.sample_blinder();
+        let blinder = self.group.random_exponent();
         let mask = self.group.exp(&self.group.g(), &blinder);
         let blinded_proof = self.group.mul(proof, &mask);
         (blinded_proof, blinder)
@@ -195,12 +196,6 @@ impl<G: Group> RsaAccumulator<G> {
         let st_mask = self.group.exp(&self.group.g(), st);
         let st_inv = self.group.inv(&st_mask);
         self.group.mul(blinded_proof, &st_inv)
-    }
-
-    fn sample_blinder(&self) -> G::Exponent {
-        let mut seed = Zeroizing::new([0u8; 32]);
-        thread_rng().fill_bytes(seed.as_mut());
-        self.group.hash_to_prime(seed.as_ref())
     }
 }
 

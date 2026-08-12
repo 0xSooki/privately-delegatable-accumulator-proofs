@@ -12,7 +12,13 @@ use num_traits::{One, Zero};
 use rand::{thread_rng, RngCore};
 use std::collections::HashSet;
 
-type ClassGroupProof = (ClassGroupElement, ClassGroupElement, ClassGroupExponent);
+type ClassGroupProof = (
+    ClassGroupElement,
+    ClassGroupElement,
+    ClassGroupElement,
+    ClassGroupElement,
+    ClassGroupExponent,
+);
 type ClassGroupAux = (ClassGroupProof, ClassGroupProof);
 
 fn class_exp_to_num(exp: &ClassGroupExponent) -> BigInt {
