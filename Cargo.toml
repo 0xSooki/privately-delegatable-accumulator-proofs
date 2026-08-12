@@ -28,7 +28,6 @@ serde = ["dep:serde"]
 
 [dependencies]
 rand = "0.8"
-sha256 = "1.6"
 sha2 = "0.9"
 hmac = "0.11"
 zeroize = { version = "1.7", features = ["derive"] }
@@ -47,8 +46,6 @@ ark-poly-commit = { version = "0.4", optional = true }
 ark-bls12-381 = { version = "0.4", optional = true }
 ark-serialize = { version = "0.4", optional = true }
 
-Gen_Prime = "1.1"
-rust-miller-rabin = "0.1"
 
 class_group = { version = "0.6.1", optional = true }
 curv = { package = "curv-kzen", version = "0.10", default-features = false, optional = true }
