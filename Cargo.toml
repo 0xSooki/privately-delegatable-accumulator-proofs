@@ -69,3 +69,7 @@ harness = false
 [[bench]]
 name = "bench_bilinear_update_breakdown"
 harness = false
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
