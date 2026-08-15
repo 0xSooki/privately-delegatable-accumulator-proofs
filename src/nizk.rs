@@ -44,9 +44,8 @@ impl<'a, G: Group> NIZK<'a, G> {
             self.group.element_to_bytes(a),
         ];
 
-        let mut transcript = Vec::with_capacity(
-            DST.len() + parts.iter().map(|p| 8 + p.len()).sum::<usize>(),
-        );
+        let mut transcript =
+            Vec::with_capacity(DST.len() + parts.iter().map(|p| 8 + p.len()).sum::<usize>());
         transcript.extend_from_slice(DST);
         for part in &parts {
             transcript.extend_from_slice(&(part.len() as u64).to_le_bytes());
@@ -76,15 +75,33 @@ impl<'a, G: Group> NIZK<'a, G> {
         w: &G::Exponent,
     ) -> (G::Element, G::Element, G::Element, G::Element, G::Exponent) {
         let a = self.group.exp(&self.group.g(), w);
+        self.prove_dleq_with_commitment(g, u, h, v, w, a)
+    }
 
+    pub fn prove_dleq_with_commitment(
+        &self,
+        g: &G::Element,
+        u: &G::Element,
+        h: &G::Element,
+        v: &G::Element,
+        w: &G::Exponent,
+        a: G::Element,
+    ) -> (G::Element, G::Element, G::Element, G::Element, G::Exponent) {
         let e = self.challenge(g, u, h, v, &a);
         let (q, r) = G::exp_div_rem(w, &e);
 
+        let gen = self.group.g();
         let Q1 = self.group.exp(g, &q);
         let Q2 = self.group.exp(h, &q);
-        let Q3 = self.group.exp(&self.group.g(), &q);
+        let Q3 = if *g == gen {
+            Q1.clone()
+        } else if *h == gen {
+            Q2.clone()
+        } else {
+            self.group.exp(&gen, &q)
+        };
 
-        (Q1,Q2,Q3, a, r)
+        (Q1, Q2, Q3, a, r)
     }
 
     pub fn verify_dleq(
@@ -103,9 +120,15 @@ impl<'a, G: Group> NIZK<'a, G> {
 
         let e = self.challenge(g, u, h, v, a);
 
-        let lhs_1 = self.group.mul( &self.group.exp(g, r),&self.group.exp(q1, &e));
-        let lhs_2 = self.group.mul( &self.group.exp(h, r),&self.group.exp(q2, &e));
-        let lhs_3 = self.group.mul( &self.group.exp(&self.group.g(), r),&self.group.exp(q3, &e));
+        let lhs_1 = self
+            .group
+            .mul(&self.group.exp(g, r), &self.group.exp(q1, &e));
+        let lhs_2 = self
+            .group
+            .mul(&self.group.exp(h, r), &self.group.exp(q2, &e));
+        let lhs_3 = self
+            .group
+            .mul(&self.group.exp(&self.group.g(), r), &self.group.exp(q3, &e));
 
         lhs_1 == *u && lhs_2 == *v && lhs_3 == *a
     }
