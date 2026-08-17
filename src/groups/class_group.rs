@@ -19,7 +19,7 @@ pub use ::class_group::primitives;
 
 static CLASS_GROUP_128_SETUP: OnceLock<ClassGroup> = OnceLock::new();
 
-pub const DISC_SIZE: usize = 3400;
+pub const DISC_SIZE: usize = 6784;
 pub const PARI_STACK_SIZE_BYTES: usize = 100_000_000_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
