@@ -74,7 +74,10 @@ pub struct RsaUpdatedBlindedNonMembershipProof {
     pub b: BigUint,
 }
 
-pub(super) type Aux = ((BigUint, BigUint, BigUint, BigUint, BigUint), (BigUint, BigUint, BigUint, BigUint, BigUint));
+pub(super) type Aux = (
+    (BigUint, BigUint, BigUint, BigUint, BigUint),
+    (BigUint, BigUint, BigUint, BigUint, BigUint),
+);
 pub(super) type UpdatedBlindProof = ((BigUint, BigUint), Aux, BigUint);
 
 impl RsaMembershipProof {

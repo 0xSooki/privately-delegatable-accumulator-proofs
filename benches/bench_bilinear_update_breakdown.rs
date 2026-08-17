@@ -410,26 +410,15 @@ fn benchmark_mem_update_breakdown(c: &mut Criterion) {
         };
 
         bilinear_group.bench_with_input(BenchmarkId::new("full_update", size), &size, |b, &_| {
-            b.iter_batched(
-                || {
-                    (
-                        ctx.acc_after_update.clone(),
-                        ctx.crs_prime.clone(),
-                        ctx.q_star.clone(),
-                        ctx.powers_acc_t_vec.clone(),
-                    )
-                },
-                |(acc, crs_prime, q_star, powers_acc_t)| {
-                    let _ = black_box(acc.blind_mem_proof_upd_raw(
-                        &ctx.pi_blinded,
-                        &ctx.acc_t,
-                        crs_prime,
-                        q_star,
-                        powers_acc_t,
-                    ));
-                },
-                BatchSize::SmallInput,
-            );
+            b.iter(|| {
+                black_box(ctx.acc_after_update.blind_mem_proof_upd_raw(
+                    black_box(&ctx.pi_blinded),
+                    black_box(&ctx.acc_t),
+                    black_box(&ctx.crs_prime),
+                    black_box(&ctx.q_star),
+                    black_box(&ctx.powers_acc_t_vec),
+                ));
+            });
         });
 
         bilinear_group.bench_with_input(BenchmarkId::new("nizk_proving", size), &size, |b, &_| {

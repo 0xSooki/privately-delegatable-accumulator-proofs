@@ -105,7 +105,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
             E::ScalarField::one(),
         ]);
         self.poly = &self.poly * &factor;
-        self.acc = self.kzg_com(&None, &self.poly);
+        self.acc = self.kzg_com(None, &self.poly);
         self.elements.insert(element.to_owned());
         true
     }
@@ -117,7 +117,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let (q, r) = Self::syn_div(&self.poly, &element);
         debug_assert!(r.is_zero(), "element is a root; r must be 0");
         self.poly = q;
-        self.acc = self.kzg_com(&None, &self.poly);
+        self.acc = self.kzg_com(None, &self.poly);
         self.elements.remove(&element);
         true
     }
@@ -128,7 +128,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         }
         let (q, _) = Self::syn_div(&self.poly, &element);
         Some(MembershipProof {
-            pi: self.kzg_com(&None, &q),
+            pi: self.kzg_com(None, &q),
         })
     }
 
@@ -142,7 +142,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let (q, r) = Self::syn_div(&self.poly, &element);
         Some(NonMembershipProof {
             y: r,
-            b: self.kzg_com(&None, &q),
+            b: self.kzg_com(None, &q),
         })
     }
 
@@ -183,7 +183,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
             let mut coeffs = vec![E::ScalarField::zero(); i];
             coeffs.extend(q.coeffs().iter().map(|c| *c * r));
             let r_xi_q = DensePolynomial::from_coefficients_vec(coeffs);
-            crs_prime.push(self.kzg_com(&None, &r_xi_q));
+            crs_prime.push(self.kzg_com(None, &r_xi_q));
         }
         Some((crs_prime, r))
     }
@@ -192,9 +192,9 @@ impl<E: Pairing> BilinearAccumulator<E> {
         &self,
         pi: &E::G1Affine,
         acc_t: &E::G1Affine,
-        crs_prime: Vec<E::G1Affine>,
-        q_star: DensePolynomial<E::ScalarField>,
-        powers_acc_t: Vec<E::G1Affine>,
+        crs_prime: &[E::G1Affine],
+        q_star: &DensePolynomial<E::ScalarField>,
+        powers_acc_t: &[E::G1Affine],
     ) -> (
         E::G1Affine,
         (
@@ -204,14 +204,13 @@ impl<E: Pairing> BilinearAccumulator<E> {
             E::ScalarField,
             E::G1Affine,
         ),
-        DensePolynomial<E::ScalarField>,
     )
     where
         E::ScalarField: PrimeField,
     {
         let acc_t_prime = self.acc;
 
-        let pi_prime = self.kzg_com(&Some(crs_prime.clone()), &q_star);
+        let pi_prime = self.kzg_com(Some(crs_prime), q_star);
 
         let required_len = q_star.coeffs().len();
 
@@ -222,24 +221,17 @@ impl<E: Pairing> BilinearAccumulator<E> {
         );
 
         let powers_for_acc_t = Powers::<E> {
-            powers_of_g: Cow::Owned(powers_acc_t.into_iter().take(required_len).collect()),
+            powers_of_g: Cow::Borrowed(&powers_acc_t[..required_len]),
             powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
         let powers_for_pi = Powers::<E> {
-            powers_of_g: Cow::Owned(crs_prime.into_iter().take(required_len).collect()),
+            powers_of_g: Cow::Borrowed(&crs_prime[..required_len]),
             powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
         let powers_for_g1 = Powers::<E> {
-            powers_of_g: Cow::Owned(
-                self.group
-                    .crs_g1
-                    .iter()
-                    .copied()
-                    .take(required_len)
-                    .collect(),
-            ),
+            powers_of_g: Cow::Borrowed(&self.group.crs_g1[..required_len]),
             powers_of_gamma_g: Cow::Borrowed(&[]),
         };
 
@@ -251,11 +243,11 @@ impl<E: Pairing> BilinearAccumulator<E> {
             &acc_t_prime,
             pi,
             &pi_prime,
-            &q_star,
+            q_star,
         )
         .expect("PoEEq proof creation failed");
 
-        (pi_prime, poe_eq_proof, q_star)
+        (pi_prime, poe_eq_proof)
     }
 
     pub fn shift_com(
@@ -268,7 +260,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
             let mut coeffs = vec![E::ScalarField::zero(); i];
             coeffs.extend(poly.coeffs().iter().copied());
             let shifted = DensePolynomial::from_coefficients_vec(coeffs);
-            shifted_coms.push(self.kzg_com(&None, &shifted));
+            shifted_coms.push(self.kzg_com(None, &shifted));
         }
         shifted_coms
     }
@@ -335,7 +327,7 @@ impl<E: Pairing> BilinearAccumulator<E> {
         let mut x_q_coeffs = vec![E::ScalarField::zero()];
         x_q_coeffs.extend(q_poly.coeffs().iter().copied());
         let x_q = DensePolynomial::from_coefficients_vec(x_q_coeffs);
-        let b_tau = self.kzg_com(&None, &x_q);
+        let b_tau = self.kzg_com(None, &x_q);
 
         let crs_prime = (
             (proof.b.into_group() * r).into_affine(),
@@ -426,12 +418,12 @@ impl<E: Pairing> BilinearAccumulator<E> {
 
     fn kzg_com(
         &self,
-        crs: &Option<Vec<E::G1Affine>>,
+        crs: Option<&[E::G1Affine]>,
         poly: &DensePolynomial<E::ScalarField>,
     ) -> E::G1Affine {
         let powers = if let Some(custom_crs) = crs {
             Powers::<E> {
-                powers_of_g: Cow::Borrowed(custom_crs.as_slice()),
+                powers_of_g: Cow::Borrowed(custom_crs),
                 powers_of_gamma_g: Cow::Borrowed(&[]),
             }
         } else {
@@ -506,7 +498,7 @@ where
             return Err(AccumulatorError::ElementNotInSet);
         }
         let (witness_poly, _) = Self::syn_div(&self.poly, element);
-        let pi = self.kzg_com(&None, &witness_poly);
+        let pi = self.kzg_com(None, &witness_poly);
         Ok(ProverMembershipProof {
             proof: MembershipProof { pi },
             element: *element,
@@ -588,20 +580,16 @@ where
             },
         );
         let powers_acc_t = self.shift_com(&blinded_proof.poly_s, q_star.coeffs().len());
-        let (pi_prime, poe_eq_proof, q_star_back) =
-            BilinearAccumulator::<E>::blind_mem_proof_upd_raw(
-                self,
-                &blinded_proof.pi_blinded,
-                acc_t,
-                blinded_proof.crs_prime.clone(),
-                q_star,
-                powers_acc_t,
-            );
+        let (pi_prime, poe_eq_proof) = BilinearAccumulator::<E>::blind_mem_proof_upd_raw(
+            self,
+            &blinded_proof.pi_blinded,
+            acc_t,
+            &blinded_proof.crs_prime,
+            &q_star,
+            &powers_acc_t,
+        );
         Ok((
-            UpdatedBlindedMembershipBundle {
-                pi_prime,
-                q_star: q_star_back,
-            },
+            UpdatedBlindedMembershipBundle { pi_prime, q_star },
             poe_eq_proof,
             self.acc,
         ))
@@ -849,14 +837,14 @@ mod tests {
 
         let powers_acc_t = acc.shift_com(&s, q_star.coeffs().len());
 
-        let (pi_prime, poe_eq_proof, delta) =
-            acc.blind_mem_proof_upd_raw(&pi_blinded, &acc_t, crs_prime, q_star, powers_acc_t);
+        let (pi_prime, poe_eq_proof) =
+            acc.blind_mem_proof_upd_raw(&pi_blinded, &acc_t, &crs_prime, &q_star, &powers_acc_t);
 
         assert!(acc.ver_blind_mem_proof_upd_raw(
             &pi_blinded,
             &pi_prime,
             &acc_t,
-            &delta,
+            &q_star,
             &poe_eq_proof,
         ));
 

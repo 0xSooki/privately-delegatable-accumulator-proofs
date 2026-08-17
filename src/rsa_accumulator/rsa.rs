@@ -177,8 +177,24 @@ impl RsaAccumulator<RsaGroup> {
         let b = self.group.exp(&g, &delta_uint);
 
         let nizk = NIZK::setup(&self.group);
-        let pi1 = NIZK::prove_dleq(&nizk, blinded_proof, &a, acc_t, acc_t_prime, &delta_uint);
-        let pi2 = NIZK::prove_dleq(&nizk, &g, &b, blinded_proof, &a, &delta_uint);
+        let pi1 = NIZK::prove_dleq_with_commitment(
+            &nizk,
+            blinded_proof,
+            &a,
+            acc_t,
+            acc_t_prime,
+            &delta_uint,
+            b.clone(),
+        );
+        let pi2 = NIZK::prove_dleq_with_commitment(
+            &nizk,
+            &g,
+            &b,
+            blinded_proof,
+            &a,
+            &delta_uint,
+            b.clone(),
+        );
 
         let upd_blinded_proof = (a, b);
         let aux = (pi1, pi2);

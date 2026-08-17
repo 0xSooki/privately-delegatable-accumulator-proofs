@@ -180,13 +180,13 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
     let bilinear_powers_acc_t =
         bilinear_acc_mem_upd.shift_com(&bilinear_s_poly, bilinear_q_star.coeffs().len());
     bilinear_acc_mem_upd.add_raw(&update);
-    let (bilinear_pi_prime, bilinear_mem_poe_eq_proof, bilinear_mem_delta) = bilinear_acc_mem_upd
+    let (bilinear_pi_prime, bilinear_mem_poe_eq_proof) = bilinear_acc_mem_upd
         .blind_mem_proof_upd_raw(
             &bilinear_pi_blinded,
             &bilinear_acc_t,
-            bilinear_crs_prime,
-            bilinear_q_star,
-            bilinear_powers_acc_t,
+            &bilinear_crs_prime,
+            &bilinear_q_star,
+            &bilinear_powers_acc_t,
         );
 
     group.bench_function("bilinear_unblind_mem_proof", |b| {
@@ -204,7 +204,7 @@ fn benchmark_o1_membership_ops(c: &mut Criterion) {
                 &bilinear_pi_blinded,
                 &bilinear_pi_prime,
                 &bilinear_acc_t,
-                &bilinear_mem_delta,
+                &bilinear_q_star,
                 &bilinear_mem_poe_eq_proof,
             ));
         });
